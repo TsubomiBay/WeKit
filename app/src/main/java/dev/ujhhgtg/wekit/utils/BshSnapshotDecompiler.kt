@@ -400,7 +400,7 @@ object BshSnapshotDecompiler {
         if (node.jjtGetNumChildren() < 2) return decompileChildren(node, ", ", indent)
         val type = decompileNode(node.jjtGetChild(0), indent)
         val expr = decompileNode(node.jjtGetChild(1), indent)
-        return "($type) $expr"
+        return "(($type) $expr)" // I don't care, AI fails to fix this, so I'll just take the shortcut
     }
 
     private fun decompilePrimaryExpr(node: Node, indent: Int): String {
@@ -494,7 +494,15 @@ object BshSnapshotDecompiler {
                 Primitive.TRUE -> "true"
                 Primitive.FALSE -> "false"
                 Primitive.VOID -> "void"
-                else -> v.toString()
+                else -> {
+                    when (val actual = v.getValue()) {
+                        is Char -> "'${escapeChar(actual)}'"
+                        is String -> quote(actual)
+                        is Boolean -> actual.toString()
+                        is Number -> actual.toString()
+                        else -> actual?.toString() ?: "null"
+                    }
+                }
             }
 
             else -> v.toString()
@@ -568,6 +576,8 @@ object BshSnapshotDecompiler {
             if (cs.isNotEmpty()) {
                 sb.append("  ".repeat(indent + 1))
                 sb.append(cs)
+                if (!cs.endsWith(";") && !cs.endsWith("}") && !cs.endsWith("{\n") && !cs.endsWith(":"))
+                    sb.append(";")
                 sb.append("\n")
             }
         }
