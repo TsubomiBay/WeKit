@@ -734,7 +734,7 @@ object WeMessageApi : ApiHookItem(), IResolvesDex {
             } else {
                 xml = null
             }
-            WeNetSceneApi.addNetSceneToQueue(
+            WeNetSceneApi.sendNetScene(
                 ctorNetSceneUploadMsgImg.newInstance(4, wxId, toUser, md5, 1, null, 0, xml, "", true, 0)
             )
         }

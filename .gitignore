@@ -27,4 +27,4 @@ local.properties
 /app/src/main/jniLibs/*/libwekit_native.so
 /build-logic/convention/build/
 
-/local-maven
+/app/src/main/java/dev/ujhhgtg/wekit/hooks/items/chat/ExploitGroupMemberRealNamesFirstChar.kt

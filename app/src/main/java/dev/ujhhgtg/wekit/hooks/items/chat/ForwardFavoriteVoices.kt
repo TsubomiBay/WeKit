@@ -5,6 +5,7 @@ import android.view.View
 import androidx.compose.material3.Text
 import com.highcapable.kavaref.extension.toClass
 import dev.ujhhgtg.wekit.hooks.api.core.WeMessageApi
+import dev.ujhhgtg.wekit.hooks.api.net.models.protobuf.FavInfoProto
 import dev.ujhhgtg.wekit.hooks.core.HookItem
 import dev.ujhhgtg.wekit.hooks.core.SwitchHookItem
 import dev.ujhhgtg.wekit.ui.content.AlertDialogContent
@@ -19,10 +20,8 @@ import dev.ujhhgtg.wekit.utils.android.showToast
 import dev.ujhhgtg.wekit.utils.coerceToInt
 import dev.ujhhgtg.wekit.utils.reflection.asResolver
 import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.protobuf.ProtoBuf
-import kotlinx.serialization.protobuf.ProtoNumber
 import kotlin.io.path.absolutePathString
 import kotlin.io.path.div
 
@@ -81,42 +80,4 @@ object ForwardFavoriteVoices : SwitchHookItem() {
             result = null
         }
     }
-}
-
-@OptIn(ExperimentalSerializationApi::class)
-@Serializable
-data class FavInfoProto(
-    @ProtoNumber(1)
-    val chatInfo: ChatInfoProto,
-
-    @ProtoNumber(2)
-    val voiceInfo: VoiceInfoProto
-) {
-
-    @Serializable
-    data class ChatInfoProto(
-        @ProtoNumber(2)
-        val senderId: String
-    )
-
-    @Serializable
-    data class VoiceInfoProto(
-        @ProtoNumber(10)
-        val duration: Int,
-
-        @ProtoNumber(16)
-        val fileCacheType: String,
-
-        @ProtoNumber(17)
-        val md5Checksum: String,
-
-        @ProtoNumber(19)
-        val fileSize: Int,
-
-        @ProtoNumber(20)
-        val fileCacheName: String,
-
-        @ProtoNumber(21)
-        val filePath: String? = null
-    )
 }

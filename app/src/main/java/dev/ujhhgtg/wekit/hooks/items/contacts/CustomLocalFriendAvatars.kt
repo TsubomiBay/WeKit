@@ -98,12 +98,12 @@ import kotlin.io.path.writeText
 import kotlin.math.min
 
 @HookItem(
-    name = "自定义好友本地头像", categories = ["联系人与群组"],
+    name = "自定义好友本地头像", categories = ["联系人与群组", "联系人详情页面"],
     description = "为指定联系人或群组使用本地图片替换微信内显示的头像"
 )
 object CustomContactAvatar : ClickableHookItem(), IContactInfoProvider, IResolvesDex {
 
-    private const val PREF_KEY = "custom_contact_avatar"
+    private const val PREF_KEY = "custom_avatar"
     private const val SEP = ";"
     private const val VIEW_TAG_CUSTOM_AVATAR = 0x57434156
 
@@ -258,21 +258,22 @@ object CustomContactAvatar : ClickableHookItem(), IContactInfoProvider, IResolve
         val wxId = activity.currentWxId ?: return emptyList()
         val hasCustomAvatar = avatarMap.containsKey(wxId)
         return listOf(ContactInfoItem(
-            key = "$PREF_KEY$SEP$wxId",
+            key = PREF_KEY,
             title = if (hasCustomAvatar) "更换自定义头像" else "设置自定义头像",
             position = 1
         ))
     }
 
     override fun onItemClick(activity: Activity, key: String): Boolean {
-        if (!key.startsWith(PREF_KEY)) return false
-        val wxId = key.substringAfter(SEP).ifBlank { activity.currentWxId.orEmpty() }
+        if (key != PREF_KEY) return false
+        val wxId = activity.currentWxId ?: return true
 
         if (avatarMap.containsKey(wxId)) {
             showContactAvatarDialog(activity, wxId)
         } else {
             selectAvatarImage(activity, wxId)
         }
+
         return true
     }
 
@@ -680,7 +681,7 @@ object CustomContactAvatar : ClickableHookItem(), IContactInfoProvider, IResolve
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(),
-            title = { Text("自定义联系人与群聊头像") },
+            title = { Text("自定义好友本地头像") },
             text = {
                 Column(modifier = Modifier.fillMaxSize()) {
                     OutlinedTextField(

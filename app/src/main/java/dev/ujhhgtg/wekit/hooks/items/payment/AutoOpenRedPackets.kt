@@ -20,7 +20,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.core.net.toUri
 import com.highcapable.kavaref.extension.createInstance
 import dev.ujhhgtg.comptime.This
-import dev.ujhhgtg.comptime.nameOf
 import dev.ujhhgtg.wekit.dexkit.abc.IResolvesDex
 import dev.ujhhgtg.wekit.dexkit.dsl.dexClass
 import dev.ujhhgtg.wekit.dexkit.dsl.dexMethod
@@ -96,7 +95,7 @@ object AutoOpenRedPackets : ClickableHookItem(), WeDatabaseListenerApi.IInsertLi
                         info.headImg, info.nickName, info.talker,
                         "v1.0", timingIdentifier, ""
                     )
-                    WeNetSceneApi.addNetSceneToQueue(openReq) // seems like this simple version works too
+                    WeNetSceneApi.sendNetScene(openReq) // seems like this simple version works too
                     // we don't remove packet from map here for use in hookOpenReqEndCallback
                 } catch (e: Throwable) {
                     WeLogger.e(TAG, "failed to send open request", e)
@@ -230,7 +229,7 @@ object AutoOpenRedPackets : ClickableHookItem(), WeDatabaseListenerApi.IInsertLi
                         msgType, channelId, sendId, nativeUrl, 1 /* inWay */, "v1.0" /* ver */, talker
                     )
 
-                    WeNetSceneApi.addNetSceneToQueue(req) // seems like this simple version works too
+                    WeNetSceneApi.sendNetScene(req) // seems like this simple version works too
                     WeLogger.i(TAG, "sent receive request (sendId=$sendId)")
                 } catch (e: Throwable) {
                     WeLogger.e(TAG, "failed to send receive request (sendId=$sendId)", e)

@@ -13,12 +13,14 @@ import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import com.composables.icons.materialsymbols.MaterialSymbols
 import com.composables.icons.materialsymbols.outlined.Account_circle
+import com.composables.icons.materialsymbols.outlined.Add_circle
 import com.composables.icons.materialsymbols.outlined.Block
 import com.composables.icons.materialsymbols.outlined.Bug_report
 import com.composables.icons.materialsymbols.outlined.Build_circle
 import com.composables.icons.materialsymbols.outlined.Camera
 import com.composables.icons.materialsymbols.outlined.Chat
 import com.composables.icons.materialsymbols.outlined.Comedy_mask
+import com.composables.icons.materialsymbols.outlined.Contact_page
 import com.composables.icons.materialsymbols.outlined.Contacts
 import com.composables.icons.materialsymbols.outlined.Delete_forever
 import com.composables.icons.materialsymbols.outlined.Download
@@ -122,7 +124,9 @@ class MainSettingsScreen : BasePrefsScreen(BuildConfig.TAG) {
             "个人资料" to MaterialSymbols.Outlined.Account_circle,
             "调试" to MaterialSymbols.Outlined.Bug_report,
             "脚本" to MaterialSymbols.Outlined.Terminal,
-            "娱乐" to MaterialSymbols.Outlined.Comedy_mask
+            "娱乐" to MaterialSymbols.Outlined.Comedy_mask,
+            "首页右上角菜单" to MaterialSymbols.Outlined.Add_circle,
+            "联系人详情页面" to MaterialSymbols.Outlined.Contact_page
         )
         categories.forEach { (name, icon) ->
             addPreference(

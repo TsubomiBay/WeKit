@@ -39,10 +39,14 @@ object WeLogger {
         writer?.runCatching { close() }
         writer = null
 
-        val logPath = runCatching {
-            val logsDir = (KnownPaths.moduleData / "logs").createDirectoriesNoThrow()
-            logsDir / "wekit-${dateFmt.format(today)}.log"
+        val logsDir = runCatching {
+            (KnownPaths.moduleData / "logs").createDirectoriesNoThrow()
         }.getOrNull() ?: return null
+
+        // Clean up logs older than 3 days during rotation/initialization
+        deleteOldLogs(logsDir)
+
+        val logPath = logsDir / "wekit-${dateFmt.format(today)}.log"
 
         return runCatching {
             FileWriter(logPath.toFile(), true).also {
@@ -50,6 +54,26 @@ object WeLogger {
                 currentLogDate = today
             }
         }.getOrNull()
+    }
+
+    private fun deleteOldLogs(logsDir: java.nio.file.Path) {
+        runCatching {
+            val thresholdDate = LocalDate.now().minusDays(3)
+            val logFileRegex = Regex("""wekit-(\d{4}-\d{2}-\d{2})\.log""")
+
+            logsDir.toFile().listFiles()?.forEach { file ->
+                val match = logFileRegex.matchEntire(file.name)
+                if (match != null) {
+                    val dateStr = match.groupValues[1]
+                    val fileDate = runCatching { LocalDate.parse(dateStr, dateFmt) }.getOrNull()
+
+                    // If the log file date is older than 3 days ago, delete it
+                    if (fileDate != null && fileDate.isBefore(thresholdDate)) {
+                        file.delete()
+                    }
+                }
+            }
+        }
     }
 
     private fun writeToFile(level: String, tag: String?, msg: String, throwable: Throwable? = null) {

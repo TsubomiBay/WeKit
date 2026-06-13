@@ -15,6 +15,7 @@ import dev.ujhhgtg.wekit.hooks.api.core.models.WeContact
 import dev.ujhhgtg.wekit.hooks.api.core.models.WeGroup
 import dev.ujhhgtg.wekit.hooks.api.core.models.WeMessage
 import dev.ujhhgtg.wekit.hooks.api.core.models.WeOfficialAccount
+import dev.ujhhgtg.wekit.hooks.api.net.models.protobuf.ChatRoomDataProto
 import dev.ujhhgtg.wekit.hooks.core.ApiHookItem
 import dev.ujhhgtg.wekit.hooks.core.HookItem
 import dev.ujhhgtg.wekit.utils.WeLogger
@@ -22,10 +23,8 @@ import dev.ujhhgtg.wekit.utils.reflection.BString
 import dev.ujhhgtg.wekit.utils.reflection.asResolver
 import dev.ujhhgtg.wekit.utils.reflection.int
 import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.protobuf.ProtoBuf
-import kotlinx.serialization.protobuf.ProtoNumber
 import org.luckypray.dexkit.DexKitBridge
 import java.lang.reflect.Modifier
 
@@ -250,21 +249,6 @@ object WeDatabaseApi : ApiHookItem(), IResolvesDex {
         /** 获取群聊成员列表字符串 */
         const val GROUP_MEMBERS = "SELECT memberlist FROM chatroom WHERE chatroomname = '%s'"
     }
-
-    // =========================================
-    // protobuf: chatroom roomdata 解析
-    // =========================================
-
-    @Serializable
-    private data class ChatRoomMemberProto constructor(
-        @ProtoNumber(1) val wxid: String = "",
-        @ProtoNumber(2) val displayName: String = "",
-    )
-
-    @Serializable
-    private data class ChatRoomDataProto(
-        @ProtoNumber(1) val members: List<ChatRoomMemberProto> = emptyList(),
-    )
 
     override fun resolveDex(dexKit: DexKitBridge) {
         classMmKernel.find(dexKit) {
@@ -534,7 +518,7 @@ object WeDatabaseApi : ApiHookItem(), IResolvesDex {
                 if (cursor != null && cursor.moveToFirst()) {
                     val blob = cursor.getBlob(0) ?: return ""
                     val data = ProtoBuf.decodeFromByteArray<ChatRoomDataProto>(blob)
-                    return data.members.firstOrNull { it.wxid == memberId }?.displayName ?: ""
+                    return data.members.firstOrNull { it.wxId == memberId }?.displayName ?: ""
                 }
             }
         } catch (e: Exception) {

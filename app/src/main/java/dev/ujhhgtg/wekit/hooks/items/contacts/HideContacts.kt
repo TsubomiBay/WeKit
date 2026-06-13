@@ -372,18 +372,6 @@ object HideContacts : ClickableHookItem(), IResolvesDex {
                         var autoRejectVoipInput by remember { mutableStateOf(autoRejectVoip) }
 
                         ListItem(
-                            headlineContent = { Text("自动拒绝音视频通话") },
-                            supportingContent = { Text("不保证有效") },
-                            trailingContent = {
-                                Switch(checked = autoRejectVoipInput, onCheckedChange = null)
-                            },
-                            modifier = Modifier.clickable {
-                                autoRejectVoipInput = !autoRejectVoipInput
-                                autoRejectVoip = autoRejectVoipInput
-                            }
-                        )
-
-                        ListItem(
                             headlineContent = { Text("配置隐藏列表") },
                             supportingContent = { Text("点击配置联系人隐藏列表") },
                             modifier = Modifier.clickable {
@@ -399,6 +387,18 @@ object HideContacts : ClickableHookItem(), IResolvesDex {
                                         onDismiss()
                                     }
                                 }
+                            }
+                        )
+
+                        ListItem(
+                            headlineContent = { Text("自动拒绝音视频通话") },
+                            supportingContent = { Text("不保证有效") },
+                            trailingContent = {
+                                Switch(checked = autoRejectVoipInput, onCheckedChange = null)
+                            },
+                            modifier = Modifier.clickable {
+                                autoRejectVoipInput = !autoRejectVoipInput
+                                autoRejectVoip = autoRejectVoipInput
                             }
                         )
                     }

@@ -152,7 +152,7 @@ object AutoAcceptTransfers : ClickableHookItem(), IResolvesDex, WeDatabaseListen
                     Thread.sleep(delayTime)
                 }
 
-                WeNetSceneApi.addNetSceneToQueue(netScene)
+                WeNetSceneApi.sendNetScene(netScene)
                 WeLogger.i(TAG, "constructed net scene and added to queue")
 
                 val autoReply = WePrefs.getStringOrDef("transfer_auto_reply", "")
