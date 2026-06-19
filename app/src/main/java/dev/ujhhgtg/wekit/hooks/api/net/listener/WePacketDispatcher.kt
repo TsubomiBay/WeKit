@@ -6,6 +6,7 @@ import androidx.core.os.postDelayed
 import com.tencent.kinda.framework.module.impl.WXPCommReqResp
 import de.robv.android.xposed.XposedHelpers
 import dev.ujhhgtg.comptime.nameOf
+import dev.ujhhgtg.reflekt.reflekt
 import dev.ujhhgtg.wekit.dexkit.abc.IResolveDex
 import dev.ujhhgtg.wekit.dexkit.dsl.dexClass
 import dev.ujhhgtg.wekit.hooks.api.net.WePacketHelper
@@ -14,7 +15,6 @@ import dev.ujhhgtg.wekit.hooks.core.ApiHookItem
 import dev.ujhhgtg.wekit.hooks.core.HookItem
 import dev.ujhhgtg.wekit.utils.WeLogger
 import dev.ujhhgtg.wekit.utils.reflection.ClassLoaders
-import dev.ujhhgtg.reflekt.reflekt
 import org.luckypray.dexkit.DexKitBridge
 import java.lang.reflect.Proxy
 import java.util.concurrent.ConcurrentHashMap
@@ -118,11 +118,11 @@ object WePacketDispatcher : ApiHookItem(), IResolveDex {
                                         } catch (_: NoSuchFieldError) {
                                             XposedHelpers.callMethod(respV0, "getRespObj")
                                         }
+                                        WeLogger.d(TAG, respWrapper.javaClass.name)
 
                                         if (respWrapper != null) {
                                             val respPbObj = try {
-                                                respWrapper.reflekt().firstField { name = "a" }
-                                                    .get()
+                                                respWrapper.reflekt().firstField { name = "a" }.get()
                                             } catch (_: NoSuchFieldException) {
                                                 null
                                             }

@@ -7,9 +7,6 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import com.android.dx.stock.ProxyBuilder
-import dev.ujhhgtg.reflekt.utils.createInstance
-import dev.ujhhgtg.reflekt.utils.toClass
-import dev.ujhhgtg.reflekt.utils.toClassOrNull
 import com.tencent.mm.plugin.setting.ui.setting_new.MainSettingsUI
 import com.tencent.mm.plugin.setting.ui.setting_new.base.BaseSettingPrefUI
 import com.tencent.mm.plugin.setting.ui.setting_new.base.BaseSettingUI
@@ -22,6 +19,10 @@ import com.tencent.mm.ui.base.preference.IconPreference
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedHelpers
 import dev.ujhhgtg.comptime.This
+import dev.ujhhgtg.reflekt.reflekt
+import dev.ujhhgtg.reflekt.utils.createInstance
+import dev.ujhhgtg.reflekt.utils.toClass
+import dev.ujhhgtg.reflekt.utils.toClassOrNull
 import dev.ujhhgtg.wekit.BuildConfig
 import dev.ujhhgtg.wekit.constants.PackageNames
 import dev.ujhhgtg.wekit.constants.Preferences
@@ -33,33 +34,14 @@ import dev.ujhhgtg.wekit.hooks.core.HookItem
 import dev.ujhhgtg.wekit.ui.content.MainSettingsScreen
 import dev.ujhhgtg.wekit.ui.utils.ExtensionIcon
 import dev.ujhhgtg.wekit.utils.WeLogger
-import dev.ujhhgtg.wekit.utils.fs.KnownPaths
-import dev.ujhhgtg.wekit.utils.fs.createDirectoriesNoThrow
 import dev.ujhhgtg.wekit.utils.hookBeforeDirectly
-import dev.ujhhgtg.wekit.utils.reflection.BBool
-import dev.ujhhgtg.wekit.utils.reflection.BByte
-import dev.ujhhgtg.wekit.utils.reflection.BChar
-import dev.ujhhgtg.wekit.utils.reflection.BDouble
-import dev.ujhhgtg.wekit.utils.reflection.BFloat
-import dev.ujhhgtg.wekit.utils.reflection.BInt
-import dev.ujhhgtg.wekit.utils.reflection.BLong
-import dev.ujhhgtg.wekit.utils.reflection.BShort
-import dev.ujhhgtg.wekit.utils.reflection.ClassLoaders
-import dev.ujhhgtg.reflekt.reflekt
-import dev.ujhhgtg.wekit.utils.reflection.bool
-import dev.ujhhgtg.wekit.utils.reflection.byte
-import dev.ujhhgtg.wekit.utils.reflection.char
-import dev.ujhhgtg.wekit.utils.reflection.double
-import dev.ujhhgtg.wekit.utils.reflection.float
+import dev.ujhhgtg.wekit.utils.reflection.buildClass
+import dev.ujhhgtg.wekit.utils.reflection.createProxyBuilder
 import dev.ujhhgtg.wekit.utils.reflection.int
-import dev.ujhhgtg.reflekt.utils.isAbstract
-import dev.ujhhgtg.wekit.utils.reflection.long
-import dev.ujhhgtg.wekit.utils.reflection.short
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.query.enums.StringMatchType
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Modifier
-import kotlin.io.path.div
 
 @HookItem(name = "设置模块入口", categories = ["API"])
 object WeSettingsInjector : ApiHookItem(), IResolveDex, WeHomeScreenPopupMenuApi.IMenuItemsProvider {
@@ -70,11 +52,59 @@ object WeSettingsInjector : ApiHookItem(), IResolveDex, WeHomeScreenPopupMenuApi
     private val methodAddPref by dexMethod()
 
     // method 2
-    private val classSettingItemClassesProvider by dexClass()
-    private val classBaseSettingItem by dexClass()
-    private val classSettingLocation by dexClass()
-    private val methodSettingGroupAccountInfoGetStringId by dexMethod()
-    private val methodSettingGroupAccountInfoReturns1 by dexMethod()
+    private val classSettingItemClassesProvider by dexClass(allowFailure = true) {
+        matcher {
+            usingEqStrings("Repairer_Setting")
+
+            superClass {
+                usingEqStrings("type")
+            }
+        }
+    }
+    private val classBaseSettingItem by dexClass(allowFailure = true) {
+        matcher {
+            usingEqStrings("", "activity", "context", "intent")
+
+            addMethod {
+                name = "<init>"
+                paramTypes("androidx.appcompat.app.AppCompatActivity")
+            }
+
+            addInterface {
+                className("com.tencent.mm.plugin.newtips.model", StringMatchType.StartsWith)
+            }
+        }
+    }
+    private val classSettingLocation by dexClass(allowFailure = true) {
+        matcher {
+            usingEqStrings("SettingLocation(parentGroup=", ", frontItem=")
+        }
+    }
+    private val methodSettingGroupAccountInfoGetStringId by dexMethod(allowFailure = true) {
+        matcher {
+            declaredClass = "com.tencent.mm.plugin.setting.ui.setting_new.settings.SettingGroupAccountInfo"
+            usingEqStrings("SettingGroup_Main_AccountInfo")
+            returnType = "java.lang.String"
+        }
+    }
+    private val methodSettingGroupAccountInfoReturns1 by dexMethod(allowFailure = true) {
+        matcher {
+            declaredClass = "com.tencent.mm.plugin.setting.ui.setting_new.settings.SettingGroupAccountInfo"
+            usingNumbers(1)
+            returnType = "int"
+        }
+    }
+    private val methodSettingGroupPersonalInfoGetGroupNameResId by dexMethod(allowFailure = true) {
+        matcher {
+            declaredClass = "com.tencent.mm.plugin.setting.ui.setting_new.settings.SettingGroupPersonalInfo"
+            returnType = "java.lang.Integer"
+        }
+    }
+    private val methodResourceHelperGetStringById by dexMethod(allowFailure = true) {
+        matcher {
+            usingEqStrings("MicroMsg.ResourceHelper", "get string, resId %d, but context is null")
+        }
+    }
 
     private val TAG = This.Class.simpleName
 
@@ -86,10 +116,7 @@ object WeSettingsInjector : ApiHookItem(), IResolveDex, WeHomeScreenPopupMenuApi
     override fun resolveDex(dexKit: DexKitBridge) {
         val prefClass = dexKit.findClass {
             matcher { className = PREFERENCE_CLASS_NAME }
-        }.singleOrNull() ?: run {
-            WeLogger.e(TAG, "Preference 类未找到")
-            return
-        }
+        }.single()
 
         methodSetKey.find(dexKit, allowMultiple = true) {
             searchPackages("com.tencent.mm.ui.base.preference")
@@ -150,53 +177,6 @@ object WeSettingsInjector : ApiHookItem(), IResolveDex, WeHomeScreenPopupMenuApi
                     paramTypes(PREFERENCE_CLASS_NAME, "int")
                     returnType = "void"
                 }
-            }
-        }
-
-        classSettingItemClassesProvider.find(dexKit, allowFailure = true) {
-            matcher {
-                usingEqStrings("Repairer_Setting")
-
-                superClass {
-                    usingEqStrings("type")
-                }
-            }
-        }
-
-        classBaseSettingItem.find(dexKit, allowFailure = true) {
-            matcher {
-                usingEqStrings("", "activity", "context", "intent")
-
-                addMethod {
-                    name = "<init>"
-                    paramTypes("androidx.appcompat.app.AppCompatActivity")
-                }
-
-                addInterface {
-                    className("com.tencent.mm.plugin.newtips.model", StringMatchType.StartsWith)
-                }
-            }
-        }
-
-        classSettingLocation.find(dexKit, allowFailure = true) {
-            matcher {
-                usingEqStrings("SettingLocation(parentGroup=", ", frontItem=")
-            }
-        }
-
-        methodSettingGroupAccountInfoGetStringId.find(dexKit, allowFailure = true) {
-            matcher {
-                declaredClass = "com.tencent.mm.plugin.setting.ui.setting_new.settings.SettingGroupAccountInfo"
-                usingEqStrings("SettingGroup_Main_AccountInfo")
-                returnType = "java.lang.String"
-            }
-        }
-
-        methodSettingGroupAccountInfoReturns1.find(dexKit, allowFailure = true) {
-            matcher {
-                declaredClass = "com.tencent.mm.plugin.setting.ui.setting_new.settings.SettingGroupAccountInfo"
-                usingNumbers(1)
-                returnType = "int"
             }
         }
     }
@@ -284,92 +264,84 @@ object WeSettingsInjector : ApiHookItem(), IResolveDex, WeHomeScreenPopupMenuApi
 //        }
 //    }
 
-    private const val WEKIT_SETTING_ITEM_NAME_RES_ID = -1337
+    const val WEKIT_SETTING_ITEM_NAME_RES_ID = -1337
 
-    private val GROUP_SETTING_ITEM_CLASS by lazy { SettingGroupMain::class.java }
+    private val PAGE_GROUP_SETTING_ITEM_CLASS by lazy { SettingGroupMain::class.java }
 
     // or SettingGroupPrivacyPermission & SettingGroupNotify
     private val PARENT_SETTING_ITEM_CLASS by lazy { SettingAdditionHeaderSearch::class.java }
     private val CHILD_SETTING_ITEM_CLASS by lazy { SettingGroupPersonalInfo::class.java }
 
-    private val customSettingItemClass by lazy {
+    private lateinit var mGetPageGroupItemClass: String
+    private lateinit var mReturns1: String
+    private lateinit var mOnClick: String
+    private lateinit var mGetStringId: String
+    private lateinit var mGetSettingLocation: String
+    private lateinit var mGetNameResId: String
+    private lateinit var mGetGroupNameResId: String
+
+    private fun resolveMethodNames() {
+        if (::mGetPageGroupItemClass.isInitialized) return
+
         // this is only used for resolving method names, so we'll hard-code SettingGroupAccountInfo
         SettingGroupAccountInfo::class.java.declaredMethods.run {
-            val mGetGroupItemClass = first { m -> m.returnType == Class::class.java }.name
-            val mReturns1 = methodSettingGroupAccountInfoReturns1.method.name
-            val mOnClick = first { m -> m.parameterCount == 3 }.name
-            val mGetStringId = methodSettingGroupAccountInfoGetStringId.method.name
-            val mGetSettingLocation =
+            mGetPageGroupItemClass = first { m -> m.returnType == Class::class.java }.name
+            mReturns1 = methodSettingGroupAccountInfoReturns1.method.name
+            mOnClick = first { m -> m.parameterCount == 3 }.name
+            mGetStringId = methodSettingGroupAccountInfoGetStringId.method.name
+            mGetSettingLocation =
                 last { m -> m.returnType == classSettingLocation.clazz }.name
-            val mGetNameResId =
-                last { m -> m.returnType == int &&
-                    m.name != methodSettingGroupAccountInfoReturns1.method.name
+            mGetNameResId =
+                last { m ->
+                    m.returnType == int &&
+                            m.name != methodSettingGroupAccountInfoReturns1.method.name
                 }.name
+            mGetGroupNameResId = methodSettingGroupPersonalInfoGetGroupNameResId.method.name
 
-            // non-play 8.0.69: C6, K6, Q6, w6, x6, z6
-            // non-play 8.0.70: k7, r7, w7, g7, h7, j7
-            // non-play 8.0.71: p7, w7, B7, l7, m7, o7
-            // play 8.0.69 (3022): E6, N6, U6, A6, B6, D6
+            // non-play 8.0.69: C6, K6, Q6, w6, x6, z6, u6
+            // non-play 8.0.70: k7, r7, w7, g7, h7, j7, ...
+            // non-play 8.0.71: p7, w7, B7, l7, m7, o7, ...
+            // play 8.0.69 (3022): E6, N6, U6, A6, B6, D6, ...
             WeLogger.d(
                 TAG,
-                "resolved all method names: $mGetGroupItemClass, $mReturns1, $mOnClick, $mGetStringId, $mGetSettingLocation, $mGetNameResId"
+                "resolved all method names: $mGetPageGroupItemClass, $mReturns1, $mOnClick, $mGetStringId, $mGetSettingLocation, $mGetNameResId, $mGetGroupNameResId"
             )
-
-            val handler = InvocationHandler { proxy, method, args ->
-                when (method.name) {
-                    mGetGroupItemClass -> GROUP_SETTING_ITEM_CLASS
-                    mReturns1 -> 1
-                    mOnClick -> openSettingsDialog(args[0] as Activity)
-                    mGetStringId -> "SettingGroup_Main_Other_WeKit"
-                    mGetSettingLocation -> classSettingLocation.clazz.createInstance(
-                        GROUP_SETTING_ITEM_CLASS,
-                        PARENT_SETTING_ITEM_CLASS
-                    )
-
-                    mGetNameResId -> WEKIT_SETTING_ITEM_NAME_RES_ID
-                    else if method.isAbstract -> {
-                        when (method.returnType) {
-                            bool, BBool -> false
-                            byte, BByte -> 0.toByte()
-                            short, BShort -> 0.toShort()
-                            int, BInt -> 0
-                            long, BLong -> 0L
-                            float, BFloat -> 0.0f
-                            double, BDouble -> 0.0
-                            char, BChar -> '\u0000'
-                            else -> ProxyBuilder.callSuper(
-                                proxy,
-                                method,
-                                *args
-                            )
-                        }
-                    }
-
-                    else -> ProxyBuilder.callSuper(
-                        proxy,
-                        method,
-                        *args
-                    )
-                }
-            }
-
-            ProxyBuilder.forClass(classBaseSettingItem.clazz)
-                .dexCache((KnownPaths.moduleData / "generated_proxy_classes").createDirectoriesNoThrow().toFile())
-                .parentClassLoader(ClassLoaders.HOST)
-                // AppCompactActivity is shipped with the host app itself, so we mustn't use AppCompatActivity::class here
-                .constructorArgTypes("androidx.appcompat.app.AppCompatActivity".toClass())
-                .handler(handler)
-                .buildProxyClass()
-                .also {
-                    // if generating a proxy class with buildProxyClass(), instances do not automatically have a handler set
-                    it.reflekt().firstConstructor().hookAfter {
-                        ProxyBuilder.setInvocationHandler(thisObject, handler)
-                    }
-                }
         }
     }
 
-    private var contextGetStringUnhook: XC_MethodHook.Unhook? = null
+    @Suppress("FunctionName", "NOTHING_TO_INLINE")
+    private inline fun SettingLocation(pageGroupClass: Class<*>, parentClass: Class<*>) = classSettingLocation.clazz.createInstance(pageGroupClass, parentClass)
+
+    private val customSettingItemClass by lazy {
+        resolveMethodNames()
+
+        val handler = InvocationHandler { proxy, method, args ->
+            when (method.name) {
+                mGetPageGroupItemClass -> PAGE_GROUP_SETTING_ITEM_CLASS
+                mReturns1 -> 1
+                mOnClick -> openSettingsDialog(args[0] as Activity)
+                mGetStringId -> "SettingGroup_Main_Other_WeKit"
+                mGetSettingLocation -> SettingLocation(
+                    PAGE_GROUP_SETTING_ITEM_CLASS,
+                    PARENT_SETTING_ITEM_CLASS
+                )
+                mGetNameResId -> WEKIT_SETTING_ITEM_NAME_RES_ID
+                mGetGroupNameResId -> WEKIT_SETTING_ITEM_NAME_RES_ID
+
+                else -> ProxyBuilder.callSuper(
+                    proxy,
+                    method,
+                    *args
+                )
+            }
+        }
+
+        createProxyBuilder(
+            classBaseSettingItem.clazz,
+            arrayOf("androidx.appcompat.app.AppCompatActivity".toClass()),
+            handler
+        ).buildClass(handler)
+    }
 
     private fun injectModernMethod2() {
         "${PackageNames.WECHAT}.plugin.setting.ui.setting_new.settings.SettingGroupMain".toClassOrNull()
@@ -378,14 +350,19 @@ object WeSettingsInjector : ApiHookItem(), IResolveDex, WeHomeScreenPopupMenuApi
                 return
             }
 
+        // for name
+        var contextGetStringUnhook: XC_MethodHook.Unhook? = null
+        // for group name; we can also hook usingEqStrings("MicroMsg.ResourceHelper", "get string, resId %d, but context is null")
+        var resourcesGetStringUnhook: XC_MethodHook.Unhook? = null
+
         // create dependency chain
         CHILD_SETTING_ITEM_CLASS.reflekt()
             .firstMethod {
                 returnType = classSettingLocation.clazz
             }
             .hookBefore {
-                result = classSettingLocation.clazz.createInstance(
-                    GROUP_SETTING_ITEM_CLASS,
+                result = SettingLocation(
+                    PAGE_GROUP_SETTING_ITEM_CLASS,
                     customSettingItemClass
                 )
             }
@@ -416,6 +393,13 @@ object WeSettingsInjector : ApiHookItem(), IResolveDex, WeHomeScreenPopupMenuApi
                             result = "${BuildConfig.TAG} 设置"
                     }
 
+                resourcesGetStringUnhook = methodResourceHelperGetStringById.method
+                    .hookBeforeDirectly {
+                        val resId = args[1] as Int
+                        if (resId == WEKIT_SETTING_ITEM_NAME_RES_ID)
+                            result = "模块"
+                    }
+
                 @Suppress("UNCHECKED_CAST")
                 val settingItemClasses = args[0] as HashSet<Class<*>>
                 settingItemClasses.add(customSettingItemClass)
@@ -427,6 +411,9 @@ object WeSettingsInjector : ApiHookItem(), IResolveDex, WeHomeScreenPopupMenuApi
                 if (thisObject !is MainSettingsUI) return@hookAfter
 
                 contextGetStringUnhook!!.unhook()
+                contextGetStringUnhook = null
+
+                resourcesGetStringUnhook!!.unhook()
                 contextGetStringUnhook = null
             }
     }
@@ -441,7 +428,7 @@ object WeSettingsInjector : ApiHookItem(), IResolveDex, WeHomeScreenPopupMenuApi
 
     override fun getMenuItems(param: XC_MethodHook.MethodHookParam) = listOf(
         WeHomeScreenPopupMenuApi.MenuItem(
-            0, BuildConfig.TAG, ExtensionIcon
+            0, "${BuildConfig.TAG} 设置", ExtensionIcon
         ) { openSettingsDialog(LauncherUI.getInstance()!!) }
     )
 

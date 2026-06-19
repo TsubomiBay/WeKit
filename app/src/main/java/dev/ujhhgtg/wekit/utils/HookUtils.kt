@@ -3,6 +3,7 @@ package dev.ujhhgtg.wekit.utils
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
 import dev.ujhhgtg.reflekt.reflected.BaseReflectedMethod
+import dev.ujhhgtg.reflekt.reflected.ReflectedConstructor
 import java.lang.reflect.Executable
 
 typealias HookAction = XC_MethodHook.MethodHookParam.() -> Unit
@@ -26,6 +27,11 @@ inline fun Executable.hookBeforeDirectly(
 )
 
 inline fun BaseReflectedMethod.hookAfterDirectly(
+    priority: Int = 50,
+    crossinline action: HookAction
+): XC_MethodHook.Unhook = self.hookAfterDirectly(priority, action)
+
+inline fun ReflectedConstructor<*>.hookAfterDirectly(
     priority: Int = 50,
     crossinline action: HookAction
 ): XC_MethodHook.Unhook = self.hookAfterDirectly(priority, action)
