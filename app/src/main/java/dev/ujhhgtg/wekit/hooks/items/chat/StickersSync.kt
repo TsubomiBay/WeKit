@@ -56,6 +56,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.Path
 import kotlin.io.path.absolutePathString
+import kotlin.io.path.deleteIfExists
 import kotlin.io.path.div
 import kotlin.io.path.extension
 import kotlin.io.path.isRegularFile
@@ -513,6 +514,32 @@ object StickersSync : ClickableHookItem(), IResolveDex {
                         ) {
                             Text(
                                 "清除微信数据库贴纸包缓存",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+
+                        Row(
+                            modifier = androidx.compose.ui.Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    CoroutineScope(Dispatchers.IO).launch {
+                                        val deleted = withContext(Dispatchers.IO) {
+                                            val hashFiles = if (stickersDir.isRegularFile()) emptyList() else {
+                                                stickersDir.walk().filter {
+                                                    it.isRegularFile() && it.name == ".hashes.json"
+                                                }.toList()
+                                            }
+                                            hashFiles.forEach { it.deleteIfExists() }
+                                            hashFiles.size
+                                        }
+                                        showToastSuspend("已清除 $deleted 个哈希缓存文件!")
+                                    }
+                                }
+                                .padding(vertical = 12.dp, horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "清除贴纸哈希缓存",
                                 style = MaterialTheme.typography.bodyLarge
                             )
                         }

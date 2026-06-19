@@ -569,8 +569,8 @@ private fun AppContent(resultLauncher: ActivityResultLauncher<String>, onUrlClic
             LinkCard(
                 icon = TelegramIcon,
                 title = "Telegram",
-                subtitle = "@ujhhgtg_wekit_ci",
-                onClick = { onUrlClick("https://t.me/ujhhgtg_wekit_ci") }
+                subtitle = "@ujhhgtg_wekit_announce",
+                onClick = { onUrlClick("https://t.me/ujhhgtg_wekit_announce") }
             )
         }
 

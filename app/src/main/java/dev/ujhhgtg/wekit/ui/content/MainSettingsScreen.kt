@@ -469,9 +469,9 @@ class MainSettingsScreen : BasePrefsScreen(BuildConfig.TAG) {
         )
         addPreference(
             title = "Telegram",
-            summary = "@ujhhgtg_wekit_ci",
+            summary = "@ujhhgtg_wekit_announce",
             icon = TelegramIcon,
-            onClick = { "https://t.me/ujhhgtg_wekit_ci".toUri().openInSystem(it, true) }
+            onClick = { "https://t.me/ujhhgtg_wekit_announce".toUri().openInSystem(it, true) }
         )
     }
 }
