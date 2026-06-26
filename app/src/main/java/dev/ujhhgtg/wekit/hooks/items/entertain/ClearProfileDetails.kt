@@ -2,6 +2,7 @@ package dev.ujhhgtg.wekit.hooks.items.entertain
 
 import android.content.Context
 import androidx.compose.material3.Text
+import dev.ujhhgtg.comptime.This
 import dev.ujhhgtg.wekit.hooks.api.net.WePacketHelper
 import dev.ujhhgtg.wekit.hooks.core.ClickableHookItem
 import dev.ujhhgtg.wekit.hooks.core.HookItem
@@ -13,6 +14,8 @@ import dev.ujhhgtg.wekit.utils.WeLogger
 
 @HookItem(name = "清空资料信息", categories = ["娱乐"], description = "清空当前用户的地区与性别等资料信息")
 object ClearProfileDetails : ClickableHookItem() {
+
+    private val TAG = This.Class.simpleName
 
     override fun onClick(context: Context) {
         showComposeDialog(context) {
@@ -31,7 +34,7 @@ object ClearProfileDetails : ClickableHookItem() {
                             payload
                         ) {
                             onSuccess { json, _ ->
-                                WeLogger.i("WeProfileCleaner", "成功，回包: $json")
+                                WeLogger.i(TAG, "success: $json")
                                 showComposeDialog(context) {
                                     AlertDialogContent(
                                         title = { Text("发送成功") },

@@ -1,5 +1,6 @@
 package dev.ujhhgtg.wekit.hooks.api.core
 
+import dev.ujhhgtg.reflekt.reflekt
 import dev.ujhhgtg.reflekt.utils.Modifiers
 import dev.ujhhgtg.wekit.dexkit.abc.IResolveDex
 import dev.ujhhgtg.wekit.dexkit.dsl.dexClass
@@ -7,27 +8,83 @@ import dev.ujhhgtg.wekit.dexkit.dsl.dexMethod
 import dev.ujhhgtg.wekit.hooks.api.core.models.MessageInfo
 import dev.ujhhgtg.wekit.hooks.core.ApiHookItem
 import dev.ujhhgtg.wekit.hooks.core.HookItem
-import dev.ujhhgtg.reflekt.reflekt
 import org.luckypray.dexkit.DexKitBridge
 import java.lang.reflect.Modifier
 
 @HookItem(name = "微信服务管理服务", categories = ["API"], description = "提供获取并使用微信服务的能力")
 object WeServiceApi : ApiHookItem(), IResolveDex {
 
-    private val methodServiceManagerGetService by dexMethod()
-    private val classEmojiFeatureService by dexClass()
-    private val classContactStorage by dexClass()
-    private val classConversationStorage by dexClass()
-    private val classStorageFeatureService by dexClass()
-    private val classChatroomService by dexClass()
-    private val classImageInfoStorage by dexClass()
-    private val classDownloadImageService by dexClass()
-    private val classImageFeatureService by dexClass()
-    private val methodApiManagerGetApi by dexMethod()
+    private val methodServiceManagerGetService by dexMethod {
+        matcher {
+            modifiers(Modifier.STATIC)
+            paramTypes(Class::class.java)
+            usingEqStrings("calling getService(...)")
+        }
+    }
+    private val classEmojiFeatureService by dexClass {
+        searchPackages("com.tencent.mm.feature.emoji")
+        matcher {
+            methods {
+                add {
+                    usingEqStrings("MicroMsg.EmojiFeatureService", "[onAccountInitialized]")
+                }
+            }
+        }
+    }
+    private val classStorageFeatureService by dexClass {
+        searchPackages("com.tencent.mm.plugin.messenger.foundation")
+        matcher {
+            addMethod {
+                returnType {
+                    usingEqStrings("PRAGMA table_info( contact_ext )")
+                }
+            }
+            addMethod {
+                returnType {
+                    usingEqStrings("MicroMsg.MsgInfoStorage", "deleted dirty msg ,count is %d")
+                }
+            }
+            addMethod {
+                returnType {
+                    usingEqStrings("PRAGMA table_info( rconversation)")
+                }
+            }
+        }
+    }
+    private val classChatroomService by dexClass {
+        matcher {
+            usingEqStrings("MicroMsg.ChatroomService", "[isEnableRoomManager]")
+        }
+    }
+    private val classImageInfoStorage by dexClass {
+        matcher {
+            usingEqStrings("MicroMsg.ImgInfoStorage", "generateMd5: %s, %s")
+        }
+    }
+    private val classDownloadImageService by dexClass {
+        matcher {
+            usingEqStrings("ModelImage.DownloadImgService", "cancelNetScene reset curTaskInfo (%s %s %s)")
+        }
+    }
+    private val classImageFeatureService by dexClass {
+        matcher {
+            addFieldForType(classImageInfoStorage.clazz)
+            addFieldForType(classDownloadImageService.clazz)
+        }
+    }
+    private val methodApiManagerGetApi by dexMethod {
+        searchPackages("com.tencent.mm.ui.chatting.manager")
+        matcher {
+            usingEqStrings("[get] ", " is not a interface!")
+        }
+    }
     private val methodMmKernelGetServiceImpl by dexMethod()
-    private val classMsgInfoStorage by dexClass()
     private val methodVideoPathFeatureServiceRestoreMp4Path by dexMethod() // formerly VideoInfoStorage
-    private val classVideoService by dexClass()
+    private val classVideoService by dexClass {
+        matcher {
+            usingEqStrings("MicroMsg.VideoService", "MicroMsg.SubCoreVideo", "quitVideoSendThread")
+        }
+    }
 
     val classApiManager: Class<*> by lazy { methodApiManagerGetApi.method.declaringClass }
 
@@ -108,86 +165,6 @@ object WeServiceApi : ApiHookItem(), IResolveDex {
             }
         }
 
-        methodServiceManagerGetService.find(dexKit) {
-            matcher {
-                modifiers(Modifier.STATIC)
-                paramTypes(Class::class.java)
-                usingEqStrings("calling getService(...)")
-            }
-        }
-
-        classEmojiFeatureService.find(dexKit) {
-            searchPackages("com.tencent.mm.feature.emoji")
-            matcher {
-                methods {
-                    add {
-                        usingEqStrings("MicroMsg.EmojiFeatureService", "[onAccountInitialized]")
-                    }
-                }
-            }
-        }
-
-        classImageInfoStorage.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.ImgInfoStorage", "generateMd5: %s, %s")
-            }
-        }
-
-        classDownloadImageService.find(dexKit) {
-            matcher {
-                usingEqStrings("ModelImage.DownloadImgService", "cancelNetScene reset curTaskInfo (%s %s %s)")
-            }
-        }
-
-        classImageFeatureService.find(dexKit) {
-            matcher {
-                addFieldForType(classImageInfoStorage.clazz)
-                addFieldForType(classDownloadImageService.clazz)
-            }
-        }
-
-        classContactStorage.find(dexKit) {
-            searchPackages("com.tencent.mm.storage")
-            matcher {
-                usingEqStrings("PRAGMA table_info( contact_ext )")
-            }
-        }
-
-        classConversationStorage.find(dexKit) {
-            searchPackages("com.tencent.mm.storage")
-            matcher {
-                usingEqStrings("PRAGMA table_info( rconversation)")
-            }
-        }
-
-        classMsgInfoStorage.find(dexKit) {
-            searchPackages("com.tencent.mm.storage")
-            matcher {
-                usingEqStrings("MicroMsg.MsgInfoStorage", "deleted dirty msg ,count is %d")
-            }
-        }
-
-        classStorageFeatureService.find(dexKit) {
-            searchPackages("com.tencent.mm.plugin.messenger.foundation")
-            matcher {
-                addMethod {
-                    returnType(classContactStorage.clazz)
-                }
-                addMethod {
-                    returnType(classMsgInfoStorage.clazz)
-                }
-                addMethod {
-                    returnType(classConversationStorage.clazz)
-                }
-            }
-        }
-
-        classChatroomService.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.ChatroomService", "[isEnableRoomManager]")
-            }
-        }
-
         val results = dexKit.findMethod {
             // >= 8.0.61
             matcher {
@@ -202,18 +179,5 @@ object WeServiceApi : ApiHookItem(), IResolveDex {
             }
         }
         methodVideoPathFeatureServiceRestoreMp4Path.setDescriptor(results.single())
-
-        classVideoService.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.VideoService", "MicroMsg.SubCoreVideo", "quitVideoSendThread")
-            }
-        }
-
-        methodApiManagerGetApi.find(dexKit) {
-            searchPackages("com.tencent.mm.ui.chatting.manager")
-            matcher {
-                usingEqStrings("[get] ", " is not a interface!")
-            }
-        }
     }
 }

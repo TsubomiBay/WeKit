@@ -215,7 +215,14 @@ object FingerprintPay : ClickableHookItem() {
                     showToast("指纹验证成功, 但无法获取密文对象! 请向模块作者报告问题")
                     return@buildPrompt
                 }
-                onSuccess(CryptoManager.encrypt(plaintext, authorizedCipher))
+                val encData = runCatching {
+                    CryptoManager.encrypt(plaintext, authorizedCipher)
+                }.getOrElse {
+                    WeLogger.e(TAG, "failed to encrypt", it)
+                    showToast(context, "加密失败! 请向模块作者报告问题")
+                    return@buildPrompt
+                }
+                onSuccess(encData)
             }.authenticate(promptInfo, BiometricPrompt.CryptoObject(cipher))
         }
     }
@@ -240,7 +247,13 @@ object FingerprintPay : ClickableHookItem() {
                     showToast("指纹验证成功, 但无法获取密文对象! 请向模块作者报告问题")
                     return@buildPrompt
                 }
-                val plaintext = CryptoManager.decrypt(encryptedData, authorizedCipher)
+                val plaintext = runCatching {
+                    CryptoManager.decrypt(encryptedData, authorizedCipher)
+                }.getOrElse {
+                    WeLogger.e(TAG, "failed to decrypt", it)
+                    showToast(context, "解密失败! 请向模块作者报告问题")
+                    return@buildPrompt
+                }
                 onSuccess(plaintext)
             }.authenticate(promptInfo, BiometricPrompt.CryptoObject(cipher))
         }

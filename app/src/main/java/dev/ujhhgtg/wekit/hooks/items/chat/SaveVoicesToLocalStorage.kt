@@ -33,8 +33,16 @@ object SaveVoicesToLocalStorage : SwitchHookItem(), IResolveDex,
 
     private val TAG = This.Class.simpleName
 
-    private val classVoiceLogic by dexClass()
-    private val methodGetAmrFullPath by dexMethod()
+    private val classVoiceLogic by dexClass {
+        matcher {
+            usingEqStrings("MicroMsg.VoiceLogic", "startRecord insert voicestg success")
+        }
+    }
+    private val methodGetAmrFullPath by dexMethod {
+        matcher {
+            usingEqStrings("getAmrFullPath cost: ")
+        }
+    }
 
 
     override fun onEnable() {
@@ -43,20 +51,6 @@ object SaveVoicesToLocalStorage : SwitchHookItem(), IResolveDex,
 
     override fun onDisable() {
         WeChatMessageContextMenuApi.removeProvider(this)
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        classVoiceLogic.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.VoiceLogic", "startRecord insert voicestg success")
-            }
-        }
-
-        methodGetAmrFullPath.find(dexKit) {
-            matcher {
-                usingEqStrings("getAmrFullPath cost: ")
-            }
-        }
     }
 
     override fun getMenuItems(): List<WeChatMessageContextMenuApi.MenuItem> {

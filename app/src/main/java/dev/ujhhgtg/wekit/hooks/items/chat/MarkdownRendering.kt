@@ -352,13 +352,9 @@ object MarkdownRendering : ClickableHookItem(), IResolveDex {
         }
     }
 
-    private val classMsgInfoWrapper by dexClass()
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        classMsgInfoWrapper.find(dexKit) {
-            matcher {
-                usingEqStrings("other", "null cannot be cast to non-null type com.tencent.mm.storage.MsgInfo")
-            }
+    private val classMsgInfoWrapper by dexClass {
+        matcher {
+            usingEqStrings("other", "null cannot be cast to non-null type com.tencent.mm.storage.MsgInfo")
         }
     }
 }

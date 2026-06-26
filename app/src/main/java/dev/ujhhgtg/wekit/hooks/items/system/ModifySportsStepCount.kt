@@ -18,27 +18,20 @@ import dev.ujhhgtg.wekit.ui.content.Button
 import dev.ujhhgtg.wekit.ui.content.TextButton
 import dev.ujhhgtg.wekit.ui.utils.showComposeDialog
 import dev.ujhhgtg.wekit.utils.android.showToast
-import org.luckypray.dexkit.DexKitBridge
 
 @HookItem(name = "修改运动步数", categories = ["系统与隐私"], description = "修改微信获取到的或手动上传运动步数")
 object ModifySportsStepCount : ClickableHookItem(), IResolveDex {
 
-    private val methodGetSteps by dexMethod()
-    private val methodUploadSteps by dexMethod()
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodGetSteps.find(dexKit) {
-            searchPackages("com.tencent.mm.plugin.sport.model")
-            matcher {
-                usingEqStrings("MicroMsg.Sport.DeviceStepManager", "get today step from %s todayStep %d")
-            }
+    private val methodGetSteps by dexMethod {
+        searchPackages("com.tencent.mm.plugin.sport.model")
+        matcher {
+            usingEqStrings("MicroMsg.Sport.DeviceStepManager", "get today step from %s todayStep %d")
         }
-
-        methodUploadSteps.find(dexKit) {
-            searchPackages("com.tencent.mm.plugin.sport.model")
-            matcher {
-                usingEqStrings("MicroMsg.Sport.DeviceStepManager", "update device Step time: %s stepCount: %s")
-            }
+    }
+    private val methodUploadSteps by dexMethod {
+        searchPackages("com.tencent.mm.plugin.sport.model")
+        matcher {
+            usingEqStrings("MicroMsg.Sport.DeviceStepManager", "update device Step time: %s stepCount: %s")
         }
     }
 
@@ -91,7 +84,7 @@ object ModifySportsStepCount : ClickableHookItem(), IResolveDex {
                         }
                         val sportsMan = methodUploadSteps.method.declaringClass.createInstance()
                         val result = methodUploadSteps.method.invoke(sportsMan, count) as Boolean
-                        showToast("已上传! 返回结果: ${if (result) "成功" else "失败"}")
+                        showToast(context, "已上传! 返回结果: ${if (result) "成功" else "失败"}")
                     }) {
                         Text("立即上传")
                     }

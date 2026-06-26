@@ -58,14 +58,10 @@ object LaunchInternalUrls : ClickableHookItem(), IResolveDex {
         }
     }
 
-    private val methodOpenUrl by dexMethod()
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodOpenUrl.find(dexKit) {
-            searchPackages("com.tencent.mm.app.plugin")
-            matcher {
-                usingEqStrings("MicroMsg.MMURIJumpHandler", "openSpecificUI, context is null")
-            }
+    private val methodOpenUrl by dexMethod {
+        searchPackages("com.tencent.mm.app.plugin")
+        matcher {
+            usingEqStrings("MicroMsg.MMURIJumpHandler", "openSpecificUI, context is null")
         }
     }
 }

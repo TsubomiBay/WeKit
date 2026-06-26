@@ -337,14 +337,10 @@ object ReplaceNavigationBar : ClickableHookItem(), IResolveDex {
         }
     }
 
-    private val methodUpdateTabUnread by dexMethod()
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodUpdateTabUnread.find(dexKit) {
-            matcher {
-                declaredClass = "com.tencent.mm.ui.LauncherUIBottomTabView"
-                usingEqStrings("MicroMsg.LauncherUITabView", "updateMainTabUnread %d")
-            }
+    private val methodUpdateTabUnread by dexMethod {
+        matcher {
+            declaredClass = "com.tencent.mm.ui.LauncherUIBottomTabView"
+            usingEqStrings("MicroMsg.LauncherUITabView", "updateMainTabUnread %d")
         }
     }
 }

@@ -14,8 +14,19 @@ import java.lang.reflect.Field
 @HookItem(name = "移除嵌入广告", categories = ["小程序"], description = "移除小程序嵌入广告")
 object RemoveEmbeddedAds : SwitchHookItem(), IResolveDex {
 
-    private val ctorNetSceneJSOperateWxData by dexConstructor()
-    private val methodBaseTransferRequestOnLoad by dexMethod()
+    private val ctorNetSceneJSOperateWxData by dexConstructor {
+        matcher {
+            declaredClass {
+                usingEqStrings("MicroMsg.NetSceneJSOperateWxData", "doScene hash=%d, funcid=%d")
+            }
+        }
+    }
+    private val methodBaseTransferRequestOnLoad by dexMethod {
+        matcher {
+            usingEqStrings("MicroMsg.BaseTransferRequest")
+            paramTypes("com.tencent.mm.plugin.brandservice.api.TransferResultInfo")
+        }
+    }
 
     private lateinit var protoField: Field
 
@@ -48,23 +59,6 @@ object RemoveEmbeddedAds : SwitchHookItem(), IResolveDex {
                     if (!json.has("ad_slot_data")) return@forEach
                     it.set("{}")
                 }
-        }
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        ctorNetSceneJSOperateWxData.find(dexKit) {
-            matcher {
-                declaredClass {
-                    usingEqStrings("MicroMsg.NetSceneJSOperateWxData", "doScene hash=%d, funcid=%d")
-                }
-            }
-        }
-
-        methodBaseTransferRequestOnLoad.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.BaseTransferRequest")
-                paramTypes("com.tencent.mm.plugin.brandservice.api.TransferResultInfo")
-            }
         }
     }
 }

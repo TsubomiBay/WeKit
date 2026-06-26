@@ -36,16 +36,16 @@ object DexCacheManager {
         (KnownPaths.moduleData / CACHE_DIR_NAME).createDirectoriesNoThrow()
     }
 
-    fun init(currentHostVersion: String) {
-        val cachedVersion = WePrefs.getString(KEY_HOST_VERSION)
-        if (cachedVersion != currentHostVersion) {
-            WeLogger.i(TAG, "host version changed: $cachedVersion -> $currentHostVersion, resetting all cache")
+    fun init(currentVer: String) {
+        val cachedVer = WePrefs.getString(KEY_HOST_VERSION)
+        if (cachedVer != currentVer) {
+            WeLogger.i(TAG, "host version changed: $cachedVer -> $currentVer, resetting all cache")
             clearAllCache()
             Preferences.noDexResolve = false
             WeLogger.i(TAG, "disabling NO_DEX_RESOLVE due to host version change")
         }
 
-        WePrefs.putString(KEY_HOST_VERSION, currentHostVersion)
+        WePrefs.putString(KEY_HOST_VERSION, currentVer)
     }
 
     /**

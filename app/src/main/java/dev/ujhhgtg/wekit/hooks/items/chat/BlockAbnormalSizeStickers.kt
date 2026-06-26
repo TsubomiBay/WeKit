@@ -37,14 +37,10 @@ object BlockAbnormalSizeStickers : SwitchHookItem(), IResolveDex {
         }
     }
 
-    private val ctorMmWxgfDrawable by dexConstructor()
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        ctorMmWxgfDrawable.find(dexKit) {
-            searchPackages("com.tencent.mm.plugin.gif")
-            matcher {
-                usingEqStrings("MicroMsg.GIF.MMWXGFDrawable", "Cpan WXGF get option failed. result:%d")
-            }
+    private val ctorMmWxgfDrawable by dexConstructor {
+        searchPackages("com.tencent.mm.plugin.gif")
+        matcher {
+            usingEqStrings("MicroMsg.GIF.MMWXGFDrawable", "Cpan WXGF get option failed. result:%d")
         }
     }
 }

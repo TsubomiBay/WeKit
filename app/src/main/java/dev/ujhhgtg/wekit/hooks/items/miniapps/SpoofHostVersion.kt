@@ -15,16 +15,12 @@ object SpoofHostVersion : SwitchHookItem(), IResolveDex {
         }
     }
 
-    private val ctorCgiLaunchWxaAppFunc1122 by dexConstructor()
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        ctorCgiLaunchWxaAppFunc1122.find(dexKit) {
-            matcher {
-                usingEqStrings(
-                    "MicroMsg.AppBrand.CgiLaunchWxaApp|func:1122",
-                    "<init> cgiHash[%d], username[%s] appId[%s] sync[%b] sessionId[%s] instanceId[%s] libVersion[%d], source:%s, launchMode:%d, migrate:%b, fallback:%b"
-                )
-            }
+    private val ctorCgiLaunchWxaAppFunc1122 by dexConstructor {
+        matcher {
+            usingEqStrings(
+                "MicroMsg.AppBrand.CgiLaunchWxaApp|func:1122",
+                "<init> cgiHash[%d], username[%s] appId[%s] sync[%b] sessionId[%s] instanceId[%s] libVersion[%d], source:%s, launchMode:%d, migrate:%b, fallback:%b"
+            )
         }
     }
 }

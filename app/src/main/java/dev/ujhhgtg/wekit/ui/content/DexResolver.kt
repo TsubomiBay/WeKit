@@ -109,9 +109,8 @@ fun DexResolver(
         return try {
             progressChannel.send(ScanProgress.Start(displayName))
 
-            item.resolveDex(dexKit)
-
             item.resolveInlineDex(dexKit)
+            item.resolveDex(dexKit)
 
             DexCacheManager.saveItemCache(item)
             progressChannel.send(ScanProgress.Complete(displayName))

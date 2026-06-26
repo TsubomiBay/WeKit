@@ -4,7 +4,7 @@ import android.annotation.SuppressLint
 import android.content.ContentValues
 import com.tencent.mm.opensdk.modelmsg.WXFileObject
 import com.tencent.mm.opensdk.modelmsg.WXMediaMessage
-import dev.ujhhgtg.comptime.nameOf
+import dev.ujhhgtg.comptime.This
 import dev.ujhhgtg.reflekt.reflekt
 import dev.ujhhgtg.reflekt.spec.VagueType
 import dev.ujhhgtg.reflekt.utils.Modifiers
@@ -52,53 +52,260 @@ object WeMessageApi : ApiHookItem(), IResolveDex {
     // -------------------------------------------------------------------------------------
     // 基础消息类
     // -------------------------------------------------------------------------------------
-    private val classNetSceneSendMsg by dexClass()
-    private val classNetSceneQueue by dexClass()
-    val classNetSceneBase by dexClass()
-    private val classNetSceneObserverOwner by dexClass()
-    private val methodGetSendMsgObject by dexMethod()
-    private val methodPostToQueue by dexMethod()
-    private val methodShareFile by dexMethod()
-    val classMsgInfo by dexClass()
-    val classMsgInfoStorage by dexClass()
-    val methodMsgInfoStorageInsertMessage by dexMethod()
-    val classChattingContext by dexClass()
-    val classChattingDataAdapter by dexClass()
-    val classTransformChattingComponent by dexClass()
-    val methodGetIsTransformed by dexMethod()
+    private val classNetSceneSendMsg by dexClass {
+        matcher {
+            methods {
+                add {
+                    paramCount = 1
+                    usingStrings("MicroMsg.NetSceneSendMsg", "markMsgFailed for id:%d")
+                }
+            }
+        }
+    }
+    private val classNetSceneQueue by dexClass {
+        searchPackages("com.tencent.mm.modelbase")
+        matcher {
+            methods {
+                add {
+                    paramCount = 2
+                    usingStrings("worker thread has not been se", "MicroMsg.NetSceneQueue")
+                }
+            }
+        }
+    }
+    val classNetSceneBase by dexClass {
+        matcher {
+            usingEqStrings("scene security verification not passed, type=")
+        }
+    }
+    private val classNetSceneObserverOwner by dexClass {
+        matcher {
+            methods {
+                add {
+                    paramCount = 4
+                    usingStrings("MicroMsg.Mvvm.NetSceneObserverOwner")
+                }
+            }
+        }
+    }
+    private val methodGetSendMsgObject by dexMethod(allowMultiple = true) {
+        matcher {
+            paramCount = 0
+            returnType = classNetSceneObserverOwner.getDescriptorString() ?: ""
+        }
+    }
+    private val methodPostToQueue by dexMethod(allowMultiple = true) {
+        searchPackages("com.tencent.mm.modelbase")
+        matcher {
+            declaredClass = classNetSceneQueue.getDescriptorString() ?: ""
+            paramTypes(classNetSceneBase.getDescriptorString() ?: "")
+            returnType = "boolean"
+            usingNumbers(0)
+        }
+    }
+    private val methodShareFile by dexMethod {
+        matcher {
+            paramTypes(
+                "com.tencent.mm.opensdk.modelmsg.WXMediaMessage",
+                "java.lang.String",
+                "java.lang.String",
+                "java.lang.String",
+                "int",
+                "java.lang.String"
+            )
+        }
+    }
+    val classMsgInfo by dexClass {
+        searchPackages("com.tencent.mm.storage")
+        matcher {
+            usingEqStrings("MicroMsg.MsgInfo", "[parseNewXmlSysMsg]")
+        }
+    }
+    val classMsgInfoStorage by dexClass {
+        searchPackages("com.tencent.mm.storage")
+        matcher {
+            usingEqStrings("MicroMsg.MsgInfoStorage", "deleted dirty msg ,count is %d")
+        }
+    }
+    val methodMsgInfoStorageInsertMessage by dexMethod {
+        matcher {
+            declaredClass(classMsgInfoStorage.clazz)
+            usingEqStrings("MsgInfo processAddMsg insert db error")
+        }
+    }
+    val classChattingContext by dexClass {
+        matcher {
+            usingEqStrings("MicroMsg.ChattingContext", "[notifyDataSetChange]")
+        }
+    }
+    val classChattingDataAdapter by dexClass {
+        matcher {
+            usingEqStrings(
+                "MicroMsg.ChattingDataAdapterV3",
+                "[handleMsgChange] isLockNotify:"
+            )
+        }
+    }
+    val classTransformChattingComponent by dexClass {
+        searchPackages("com.tencent.mm.ui.chatting.component")
+        matcher {
+            usingEqStrings("MicroMsg.TransformComponent", "[onChattingPause]")
+        }
+    }
+    val methodGetIsTransformed by dexMethod {
+        matcher {
+            declaredClass(classMsgInfo.clazz)
+            usingNumbers(64, 0)
+            usingFields {
+                add {
+                    type = "int"
+                }
+            }
+            returnType = "boolean"
+        }
+    }
 
     // -------------------------------------------------------------------------------------
     // 图片发送组件
     // -------------------------------------------------------------------------------------
-    private val classMvvmBase by dexClass()
+    private val classMvvmBase by dexClass {
+        matcher {
+            usingStrings(
+                "MicroMsg.Mvvm.MvvmPlugin",
+                "onAccountInitialized start"
+            )
+        }
+    }
     private val classImageSender by dexClass()      // 发送逻辑核心
-    private val classImageTask by dexClass()        // 任务数据模型
-    private val classServiceManager by dexClass()   // ServiceManager
-    private val classConfigLogic by dexClass()      // ConfigStorageLogic
-    private val classImageServiceImpl by dexClass()
+    private val classImageTask by dexClass(allowFailure = true) {
+        matcher { usingStrings("msg_raw_img_send") }
+    }
+    private val classServiceManager by dexClass {
+        matcher {
+            usingStrings("MicroMsg.ServiceManager")
+            methods {
+                add {
+                    modifiers = Modifier.PUBLIC or Modifier.STATIC
+                    paramCount = 1
+                    paramTypes(Class::class.java.name)
+                }
+            }
+        }
+    }
+    private val classConfigLogic by dexClass {
+        matcher {
+            usingEqStrings(
+                "MicroMsg.ConfigStorageLogic",
+                "get userinfo fail"
+            )
+        }
+    }
+    private val classImageServiceImpl by dexClass(allowFailure = true) {
+        matcher {
+            usingStrings("MicroMsg.ImgUpload.MsgImgFeatureService")
+            superClass(classMvvmBase.getDescriptorString()!!)
+        }
+    }
     private val methodImageSendEntry by dexMethod()
 
     // -------------------------------------------------------------------------------------
     // 语音发送组件
     // -------------------------------------------------------------------------------------
-    private val classVoiceParams by dexClass()          // 语音参数模型 (原 rc0.a)
-    private val classVoiceTask by dexClass()            // 语音发送任务 (原 uc0.v)
-    private val classVoiceNameGen by dexClass()         // 语音文件名生成 (原 py0.g1)
-    private val classVfs by dexClass()                  // VFS 文件操作 (原 w6)
-    private val classPathUtil by dexClass()             // 路径计算工具 (原 h1)
-    private val classMmKernel by dexClass()             // 核心 Kernel (原 j1)
-    private val methodMmKernelGetStorage by dexMethod() // Kernel.getStorage
-    private val classVoiceLogic by dexClass()
-    private val methodGetAmrFullPath by dexMethod()
-    private val methodStartRecvAndSend by dexMethod()
-    private val classSceneVoiceService by dexClass()
+    private val classVoiceParams by dexClass {
+        matcher {
+            usingEqStrings("toUserName", "fileName", "send_voice_msg")
+        }
+    }
+    private val classVoiceTask by dexClass {
+        matcher {
+            usingStrings("MicroMsg.VoiceMsg.VoiceMsgSendTask")
+            methods {
+                add {
+                    name = "<init>"
+                    paramTypes(classVoiceParams.clazz)
+                }
+            }
+        }
+    }
+    private val classVoiceNameGen by dexClass {
+        matcher {
+            usingStrings("CREATE TABLE IF NOT EXISTS voiceinfo ( FileName TEXT PRIMARY KEY")
+        }
+    }
+    private val classVfs by dexClass {
+        matcher {
+            usingStrings("MicroMsg.VFSFileOp", "Cannot resolve path or URI")
+        }
+    }
+    private val classPathUtil by dexClass {
+        searchPackages("com.tencent.mm.sdk.platformtools")
+        matcher {
+            methods {
+                add {
+                    modifiers = Modifier.PUBLIC or Modifier.STATIC
+                    returnType = "java.lang.String"
+                    paramTypes(
+                        "java.lang.String",
+                        "java.lang.String",
+                        "java.lang.String",
+                        "java.lang.String",
+                        "int"
+                    )
+                }
+            }
+        }
+    }
+    private val classMmKernel by dexClass {
+        matcher {
+            usingStrings("MicroMsg.MMKernel", "Initialize skeleton")
+        }
+    }
+    private val methodMmKernelGetStorage by dexMethod(allowMultiple = true) {
+        matcher {
+            declaredClass(classMmKernel.clazz)
+            modifiers = Modifier.PUBLIC or Modifier.STATIC
+            paramCount = 0
+            usingStrings("mCoreStorage not initialized!")
+        }
+    }
+    private val classVoiceLogic by dexClass {
+        matcher {
+            usingEqStrings("MicroMsg.VoiceLogic", "startRecord insert voicestg success")
+        }
+    }
+    private val methodGetAmrFullPath by dexMethod {
+        matcher {
+            usingEqStrings("getAmrFullPath cost: ")
+        }
+    }
+    private val methodStartRecvAndSend by dexMethod {
+        matcher {
+            usingEqStrings("MicroMsg.SceneVoiceService", "Start Recv[%s] :%s", "Start Send :")
+        }
+    }
+    private val classSceneVoiceService by dexClass {
+        matcher {
+            usingEqStrings("MicroMsg.SceneVoiceService", "//voicetrymore", "getVoiceService %s")
+        }
+    }
 
-    // 查找 Service 接口 (sc0.e)
     private val classVoiceServiceInterface by dexClass()
 
-    // Service 实现类
-    private val classVoiceServiceImpl by dexClass()
-    private val methodSendVoice by dexMethod()
+    private val classVoiceServiceImpl by dexClass {
+        matcher {
+            usingEqStrings(
+                "MicroMsg.VoiceMsgAsyncSendFSC",
+                "sendAsync only support BaseSendMsgTask Type"
+            )
+        }
+    }
+    private val methodSendVoice by dexMethod(allowMultiple = true) {
+        matcher {
+            declaredClass(classVoiceServiceImpl.clazz)
+            paramCount = 1
+            returnType = "void"
+        }
+    }
 
     // -------------------------------------------------------------------------------------
     // 运行时缓存
@@ -125,155 +332,10 @@ object WeMessageApi : ApiHookItem(), IResolveDex {
     private lateinit var voiceDurationField: Field     // 语音时长字段
     private lateinit var voiceOffsetField: Field       // 偏移量字段
 
-    private val TAG = nameOf(WeMessageApi)
+    private val TAG = This.Class.simpleName
 
     @SuppressLint("NonUniqueDexKitData")
     override fun resolveDex(dexKit: DexKitBridge) {
-
-        // ---------------------------------------------------------------------------------
-        // 基础组件查找
-        // ---------------------------------------------------------------------------------
-
-        classChattingDataAdapter.find(dexKit) {
-            matcher {
-                usingEqStrings(
-                    "MicroMsg.ChattingDataAdapterV3",
-                    "[handleMsgChange] isLockNotify:"
-                )
-            }
-        }
-
-        classChattingContext.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.ChattingContext", "[notifyDataSetChange]")
-            }
-        }
-
-        classNetSceneObserverOwner.find(dexKit) {
-            matcher {
-                methods {
-                    add {
-                        paramCount = 4
-                        usingStrings("MicroMsg.Mvvm.NetSceneObserverOwner")
-                    }
-                }
-            }
-        }
-
-        classNetSceneSendMsg.find(dexKit) {
-            matcher {
-                methods {
-                    add {
-                        paramCount = 1
-                        usingStrings("MicroMsg.NetSceneSendMsg", "markMsgFailed for id:%d")
-                    }
-                }
-            }
-        }
-
-        classNetSceneQueue.find(dexKit) {
-            searchPackages("com.tencent.mm.modelbase")
-            matcher {
-                methods {
-                    add {
-                        paramCount = 2
-                        usingStrings("worker thread has not been se", "MicroMsg.NetSceneQueue")
-                    }
-                }
-            }
-        }
-
-        classNetSceneBase.find(dexKit) {
-            matcher {
-                usingEqStrings("scene security verification not passed, type=")
-            }
-        }
-
-        methodGetSendMsgObject.find(dexKit, true) {
-            matcher {
-                paramCount = 0
-                returnType = classNetSceneObserverOwner.getDescriptorString() ?: ""
-            }
-        }
-
-        methodPostToQueue.find(dexKit, true) {
-            searchPackages("com.tencent.mm.modelbase")
-            matcher {
-                declaredClass = classNetSceneQueue.getDescriptorString() ?: ""
-                paramTypes(classNetSceneBase.getDescriptorString() ?: "")
-                returnType = "boolean"
-                usingNumbers(0)
-            }
-        }
-
-        methodShareFile.find(dexKit) {
-            matcher {
-                paramTypes(
-                    "com.tencent.mm.opensdk.modelmsg.WXMediaMessage",
-                    "java.lang.String",
-                    "java.lang.String",
-                    "java.lang.String",
-                    "int",
-                    "java.lang.String"
-                )
-            }
-        }
-
-        classMsgInfo.find(dexKit) {
-            searchPackages("com.tencent.mm.storage")
-            matcher {
-                usingEqStrings("MicroMsg.MsgInfo", "[parseNewXmlSysMsg]")
-            }
-        }
-
-
-        classMsgInfoStorage.find(dexKit) {
-            searchPackages("com.tencent.mm.storage")
-            matcher {
-                usingEqStrings("MicroMsg.MsgInfoStorage", "deleted dirty msg ,count is %d")
-            }
-        }
-
-        methodMsgInfoStorageInsertMessage.find(dexKit) {
-            matcher {
-                declaredClass(classMsgInfoStorage.clazz)
-                usingEqStrings("MsgInfo processAddMsg insert db error")
-            }
-        }
-
-        classTransformChattingComponent.find(dexKit) {
-            searchPackages("com.tencent.mm.ui.chatting.component")
-            matcher {
-                usingEqStrings("MicroMsg.TransformComponent", "[onChattingPause]")
-            }
-        }
-
-        methodGetIsTransformed.find(dexKit) {
-            matcher {
-                declaredClass(classMsgInfo.clazz)
-                usingNumbers(64, 0)
-                usingFields {
-                    add {
-                        type = "int"
-                    }
-                }
-                returnType = "boolean"
-            }
-        }
-
-        // ---------------------------------------------------------------------------------
-        // 图片组件查找
-        // ---------------------------------------------------------------------------------
-
-        classMvvmBase.find(dexKit) {
-            matcher {
-                usingStrings(
-                    "MicroMsg.Mvvm.MvvmPlugin",
-                    "onAccountInitialized start"
-                )
-            }
-        }
-
         classImageSender.find(dexKit, allowFailure = true) {
             matcher {
                 usingStrings(
@@ -294,47 +356,6 @@ object WeMessageApi : ApiHookItem(), IResolveDex {
 
         val taskClassName = methodImageSendEntry.method.parameterTypes[1]
         classImageTask.setDescriptor(taskClassName.name)
-
-        // this also seems applicable
-//        classImageTask.find(dexKit) {
-//            matcher {
-//                usingEqStrings("imgPath", "fromUsername", "toUsername", "crossParams", "msg_raw_img_send")
-//            }
-//        }
-
-        classImageServiceImpl.find(dexKit, allowFailure = true) {
-            matcher {
-                usingStrings("MicroMsg.ImgUpload.MsgImgFeatureService")
-                superClass(classMvvmBase.getDescriptorString()!!)
-            }
-        }
-
-        classImageTask.find(dexKit, allowFailure = true) {
-            matcher { usingStrings("msg_raw_img_send") }
-        }
-
-        // 查找 ServiceManager
-        classServiceManager.find(dexKit) {
-            matcher {
-                usingStrings("MicroMsg.ServiceManager")
-                methods {
-                    add {
-                        modifiers = Modifier.PUBLIC or Modifier.STATIC
-                        paramCount = 1
-                        paramTypes(Class::class.java.name)
-                    }
-                }
-            }
-        }
-
-        classConfigLogic.find(dexKit) {
-            matcher {
-                usingEqStrings(
-                    "MicroMsg.ConfigStorageLogic",
-                    "get userinfo fail"
-                )
-            }
-        }
 
         if (HostInfo.versionCode >= WeChatVersions.MM_8_0_67 && !HostInfo.isHostGooglePlay ||
             HostInfo.versionCode >= WeChatVersions.MM_8_0_66_PLAY && HostInfo.isHostGooglePlay
@@ -379,123 +400,8 @@ object WeMessageApi : ApiHookItem(), IResolveDex {
             }
         }
 
-        // ---------------------------------------------------------------------------------
-        // 语音/VFS 组件动态查找
-        // ---------------------------------------------------------------------------------
-
-        classVfs.find(dexKit) {
-            matcher {
-                usingStrings("MicroMsg.VFSFileOp", "Cannot resolve path or URI")
-            }
-        }
-
-        classVoiceNameGen.find(dexKit) {
-            matcher {
-                usingStrings("CREATE TABLE IF NOT EXISTS voiceinfo ( FileName TEXT PRIMARY KEY")
-            }
-        }
-
-        classVoiceParams.find(dexKit) {
-            matcher {
-                usingEqStrings("toUserName", "fileName", "send_voice_msg")
-            }
-        }
-
-        classVoiceTask.find(dexKit) {
-            matcher {
-                usingStrings("MicroMsg.VoiceMsg.VoiceMsgSendTask")
-                methods {
-                    add {
-                        name = "<init>"
-                        paramTypes(classVoiceParams.clazz)
-                    }
-                }
-            }
-        }
-
-        classVoiceLogic.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.VoiceLogic", "startRecord insert voicestg success")
-            }
-        }
-
-        methodGetAmrFullPath.find(dexKit) {
-            matcher {
-                usingEqStrings("getAmrFullPath cost: ")
-            }
-        }
-
-        methodStartRecvAndSend.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.SceneVoiceService", "Start Recv[%s] :%s", "Start Send :")
-            }
-        }
-
-        classSceneVoiceService.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.SceneVoiceService", "//voicetrymore", "getVoiceService %s")
-            }
-        }
-
-        classPathUtil.find(dexKit) {
-            searchPackages("com.tencent.mm.sdk.platformtools")
-            matcher {
-                methods {
-                    add {
-                        modifiers = Modifier.PUBLIC or Modifier.STATIC
-                        returnType = "java.lang.String"
-                        paramTypes(
-                            "java.lang.String",
-                            "java.lang.String",
-                            "java.lang.String",
-                            "java.lang.String",
-                            "int"
-                        )
-                    }
-                }
-            }
-        }
-
-        classMmKernel.find(dexKit) {
-            matcher {
-                usingStrings("MicroMsg.MMKernel", "Initialize skeleton")
-            }
-        }
-
-        methodMmKernelGetStorage.find(dexKit, true) {
-            matcher {
-                declaredClass(classMmKernel.clazz)
-                modifiers = Modifier.PUBLIC or Modifier.STATIC
-                paramCount = 0
-                usingStrings("mCoreStorage not initialized!")
-            }
-        }
-
-        // 定位 VoiceServiceImpl (tc0.k)
-        classVoiceServiceImpl.find(dexKit) {
-            matcher {
-                usingEqStrings(
-                    "MicroMsg.VoiceMsgAsyncSendFSC",
-                    "sendAsync only support BaseSendMsgTask Type"
-                )
-            }
-        }
-
-        // 定位 sendSync 方法 (gh)
-        methodSendVoice.find(dexKit, true) {
-            matcher {
-                declaredClass(classVoiceServiceImpl.clazz)
-                // 8.0.65 sendSync 方法打错字打成 sendAsync 了没绷住
-//                    usingStrings("sendSync only support BaseSendMsgTask Type")
-//                    paramCount = 1
-                paramCount = 1
-                returnType = "void"
-            }
-        }
-
-        // 遍历所有接口，找到第一个非系统接口作为 Service 接口
         val targetInterface = classVoiceServiceImpl.clazz.interfaces.first {
-            !it.isBuiltin && !it.name.startsWith("ki0.") // FIXME: might change with WeChat version
+            !it.isBuiltin && !it.name.startsWith("ki0.")
         }
         classVoiceServiceInterface.setDescriptor(targetInterface.name)
     }

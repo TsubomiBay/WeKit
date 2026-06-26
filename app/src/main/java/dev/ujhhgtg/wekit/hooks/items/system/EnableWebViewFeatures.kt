@@ -16,7 +16,15 @@ object EnableWebViewFeatures : SwitchHookItem(), IResolveDex {
     private val TRUE_INTENT_KEYS =
         setOf("show_feedback", "KRightBtn", "KShowFixToolsBtn", "key_enable_fts_quick")
 
-    private val methodInitWebViewFeatures by dexMethod()
+    private val methodInitWebViewFeatures by dexMethod {
+        matcher {
+            declaredClass = "com.tencent.mm.plugin.webview.ui.tools.WebViewUI"
+            usingEqStrings(
+                "banRightBtn:%b, showFixToolsBtn:%b",
+                "MicroMsg.WebViewFtsQuickHelper"
+            )
+        }
+    }
 
     override fun onEnable() {
         WebViewUI::class.reflekt()
@@ -40,18 +48,6 @@ object EnableWebViewFeatures : SwitchHookItem(), IResolveDex {
             }.invoke() as Intent
             for (key in TRUE_INTENT_KEYS) {
                 intent.putExtra(key, true)
-            }
-        }
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodInitWebViewFeatures.find(dexKit) {
-            matcher {
-                declaredClass = "com.tencent.mm.plugin.webview.ui.tools.WebViewUI"
-                usingEqStrings(
-                    "banRightBtn:%b, showFixToolsBtn:%b",
-                    "MicroMsg.WebViewFtsQuickHelper"
-                )
             }
         }
     }

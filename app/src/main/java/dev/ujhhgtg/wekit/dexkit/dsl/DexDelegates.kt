@@ -126,7 +126,8 @@ class DexClassDelegate internal constructor(
  * Dex 字段委托 — 自动生成 Key，自动反射获取 Field。
  */
 class DexFieldDelegate internal constructor(
-    override val key: String
+    override val key: String,
+    private val inlineBlock: ((DexFieldDelegate, DexKitBridge) -> Boolean)? = null
 ) : ReadOnlyProperty<BaseHookItem, DexFieldDelegate>, BaseDexDelegate {
 
     private var descriptorString: String? = null
@@ -185,6 +186,10 @@ class DexFieldDelegate internal constructor(
 
         setDescriptor(results[resultIndex].descriptor)
         return true
+    }
+
+    override fun findInline(dexKit: DexKitBridge): Boolean {
+        return inlineBlock?.invoke(this, dexKit) ?: true
     }
 
     override fun getValue(thisRef: BaseHookItem, property: KProperty<*>): DexFieldDelegate = this
@@ -464,6 +469,22 @@ fun dexClass(
         val key = "${item::class.simpleName}:${property.name}"
         DexClassDelegate(key) { delegate, dexKit ->
             delegate.find(dexKit, allowMultiple, allowFailure, multipleIndex, block)
+        }.also { item.registerDexDelegate(it) }
+    }
+
+/**
+ * 创建带有内联查找逻辑的 dexField 委托
+ */
+fun dexField(
+    allowMultiple: Boolean = false,
+    allowFailure: Boolean = false,
+    resultIndex: Int = 0,
+    block: FindField.() -> Unit
+): PropertyDelegateProvider<BaseHookItem, ReadOnlyProperty<BaseHookItem, DexFieldDelegate>> =
+    PropertyDelegateProvider { item, property ->
+        val key = "${item::class.simpleName}:${property.name}"
+        DexFieldDelegate(key) { delegate, dexKit ->
+            delegate.find(dexKit, allowMultiple, allowFailure, resultIndex, block)
         }.also { item.registerDexDelegate(it) }
     }
 

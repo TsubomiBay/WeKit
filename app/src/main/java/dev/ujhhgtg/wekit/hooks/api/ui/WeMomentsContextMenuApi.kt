@@ -46,56 +46,46 @@ object WeMomentsContextMenuApi : ApiHookItem(), IResolveDex {
         val timeLineObject: Any?
     )
 
-    private val methodOnCreateMenu by dexMethod()
-    private val methodOnItemSelected by dexMethod()
-    private val methodSnsInfoStorage by dexMethod()
-    private val methodGetSnsInfoStorage by dexMethod()
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodOnCreateMenu.find(dexKit) {
-            searchPackages("com.tencent.mm.plugin.sns.ui.listener")
-            matcher {
-                usingStrings(
-                    "MicroMsg.TimelineOnCreateContextMenuListener",
-                    "onMMCreateContextMenu error"
-                )
-            }
+    private val methodOnCreateMenu by dexMethod {
+        searchPackages("com.tencent.mm.plugin.sns.ui.listener")
+        matcher {
+            usingStrings(
+                "MicroMsg.TimelineOnCreateContextMenuListener",
+                "onMMCreateContextMenu error"
+            )
         }
-
-        methodOnItemSelected.find(dexKit) {
-            searchPackages("com.tencent.mm.plugin.sns.ui.listener")
-            matcher {
-                usingStrings(
-                    "delete comment fail!!! snsInfo is null",
-                    "send photo fail, mediaObj is null",
-                    "mediaObj is null, send failed!"
-                )
-            }
+    }
+    private val methodOnItemSelected by dexMethod {
+        searchPackages("com.tencent.mm.plugin.sns.ui.listener")
+        matcher {
+            usingStrings(
+                "delete comment fail!!! snsInfo is null",
+                "send photo fail, mediaObj is null",
+                "mediaObj is null, send failed!"
+            )
         }
-
-        methodSnsInfoStorage.find(dexKit) {
-            matcher {
-                paramCount(1)
-                paramTypes("java.lang.String")
-                usingStrings(
-                    "getByLocalId",
-                    "com.tencent.mm.plugin.sns.storage.SnsInfoStorage"
-                )
-                returnType("com.tencent.mm.plugin.sns.storage.SnsInfo")
-            }
+    }
+    private val methodSnsInfoStorage by dexMethod {
+        matcher {
+            paramCount(1)
+            paramTypes("java.lang.String")
+            usingStrings(
+                "getByLocalId",
+                "com.tencent.mm.plugin.sns.storage.SnsInfoStorage"
+            )
+            returnType("com.tencent.mm.plugin.sns.storage.SnsInfo")
         }
-
-        methodGetSnsInfoStorage.find(dexKit) {
-            searchPackages("com.tencent.mm.plugin.sns.model")
-            matcher {
-                modifiers = Modifier.STATIC
-                returnType(methodSnsInfoStorage.method.declaringClass)
-                paramCount(0)
-                usingStrings(
-                    "com.tencent.mm.plugin.sns.model.SnsCore",
-                    "getSnsInfoStorage"
-                )
-            }
+    }
+    private val methodGetSnsInfoStorage by dexMethod {
+        searchPackages("com.tencent.mm.plugin.sns.model")
+        matcher {
+            modifiers = Modifier.STATIC
+            returnType(methodSnsInfoStorage.method.declaringClass)
+            paramCount(0)
+            usingStrings(
+                "com.tencent.mm.plugin.sns.model.SnsCore",
+                "getSnsInfoStorage"
+            )
         }
     }
 

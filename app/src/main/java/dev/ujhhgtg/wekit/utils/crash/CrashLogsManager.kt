@@ -152,7 +152,7 @@ object CrashLogsManager {
         }
 
     fun clearPendingCrashFlag() {
-        deleteFlagFile(PENDING_CRASH_FLAG, "Pending crash flag cleared")
+        deleteFlagFile(PENDING_CRASH_FLAG, "pending crash flag cleared")
     }
 
     fun hasPendingCrash(): Boolean = pendingCrashLogFile != null

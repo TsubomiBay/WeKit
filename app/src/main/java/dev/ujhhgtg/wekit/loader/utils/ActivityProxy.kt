@@ -165,7 +165,7 @@ object ActivityProxy {
             className?.startsWith(PackageNames.THIS) == true
     }
 
-    class IActivityManagerHandler(private val origin: Any) : InvocationHandler {
+    private class IActivityManagerHandler(private val origin: Any) : InvocationHandler {
         override fun invoke(proxy: Any, method: Method, args: Array<Any?>?): Any? {
             val mutableArgs = args ?: emptyArray()
             if (method.name.startsWith("startActivity")) {
@@ -212,7 +212,7 @@ object ActivityProxy {
         }
     }
 
-    class ProxyHandlerCallback(private val next: Handler.Callback?) : Handler.Callback {
+    private class ProxyHandlerCallback(private val next: Handler.Callback?) : Handler.Callback {
         override fun handleMessage(msg: Message): Boolean {
             when (msg.what) {
                 100 -> handleLaunchActivity(msg)     // LAUNCH_ACTIVITY (< Android 9)
@@ -269,7 +269,7 @@ object ActivityProxy {
     }
 
     @SuppressLint("NewApi")
-    class ProxyInstrumentation(private val base: Instrumentation) : Instrumentation() {
+    private class ProxyInstrumentation(private val base: Instrumentation) : Instrumentation() {
 
         private fun tryRecoverIntent(intent: Intent?): Intent? {
             intent ?: return null

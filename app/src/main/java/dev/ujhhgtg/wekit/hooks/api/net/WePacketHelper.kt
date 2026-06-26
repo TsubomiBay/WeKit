@@ -18,6 +18,7 @@ import dev.ujhhgtg.wekit.hooks.core.ApiHookItem
 import dev.ujhhgtg.wekit.hooks.core.HookItem
 import dev.ujhhgtg.wekit.utils.WeLogger
 import dev.ujhhgtg.wekit.utils.reflection.ClassLoaders
+import dev.ujhhgtg.wekit.utils.reflection.asClass
 import dev.ujhhgtg.wekit.utils.reflection.bool
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -35,28 +36,177 @@ import java.lang.reflect.Proxy
 object WePacketHelper : ApiHookItem(), IResolveDex {
 
     // 核心 Protobuf 类
-    private val classProtoBase by dexClass()
-    private val classRawReq by dexClass()
-    private val classGenericResp by dexClass()
-    private val classConfigBuilder by dexClass()
+    private val classProtoBase by dexClass {
+        matcher {
+            usingEqStrings("Cannot use this method")
+            methods {
+                add {
+                    name = "op"
+                    paramTypes("int", "java.lang.Object[]")
+                }
+            }
+        }
+    }
+    private val classRawReq by dexClass {
+        matcher {
+            fields {
+                count(1)
+                add { type = "byte[]" }
+            }
+
+            methods {
+                add {
+                    name = "<init>"
+                    paramTypes("byte[]")
+                }
+
+                add {
+                    name = "op"
+                    paramTypes("int", "java.lang.Object[]")
+                    returnType = "int"
+                    opNames(
+                        opNames = emptyList(),
+                        matchType = OpCodeMatchType.Contains,
+                        opCodeSize = IntRange(0, 10)
+                    )
+                }
+
+                add {
+                    name = "toByteArray"
+                    returnType = "byte[]"
+                    invokeMethods {
+                        add {
+                            declaredClass = "java.lang.System"
+                            name = "arraycopy"
+                        }
+                    }
+                }
+            }
+        }
+    }
+    private val classGenericResp by dexClass {
+        matcher {
+            fields {
+                countMax(1)
+            }
+
+            methods {
+                add {
+                    name = "<init>"
+                    opNames(listOf("new-instance"), OpCodeMatchType.Contains)
+                }
+                add {
+                    name = "op"
+                    paramTypes("int", "java.lang.Object[]")
+                    returnType = "int"
+                    opNames(
+                        opNames = emptyList(),
+                        matchType = OpCodeMatchType.Contains,
+                        opCodeSize = IntRange(0, 10)
+                    )
+                }
+            }
+        }
+    }
+    private val classConfigBuilder by dexClass {
+        searchPackages("com.tencent.mm.modelbase")
+
+        matcher {
+            fields {
+                countMin(10)
+                add { type(classProtoBase.clazz) }
+                add { type(classProtoBase.clazz)  }
+                add { type = "java.lang.String" }
+            }
+        }
+    }
 
     // 业务特定请求类
     private val classNewSendMsgReq by dexClass()
     val classOplogReq by dexClass()
-    private val classNetScenePat by dexClass()
 
     // 网络
-    val classNetSceneBase by dexClass()
-    private val classNetQueue by dexClass()
-    private val classMmKernel by dexClass()
+    val classNetSceneBase by dexClass {
+        matcher {
+            usingStrings("MicroMsg.NetSceneBase")
+            modifiers = Modifier.ABSTRACT
+            methods {
+                add { usingNumbers(600000L) }
+            }
+        }
+    }
+    private val classNetScenePat by dexClass {
+        matcher {
+            classNetSceneBase.clazz.let { superClass = it.name }
+
+            methods {
+                add {
+                    name = "getType"
+                    returnType = "int"
+                    usingNumbers(849)
+                }
+            }
+            usingStrings("/cgi-bin/micromsg-bin/sendpat")
+        }
+    }
+    private val classNetQueue by dexClass {
+        matcher {
+            usingStrings("MicroMsg.NetSceneQueue", "waiting2running waitingQueue_size =")
+        }
+    }
+    private val classMmKernel by dexClass {
+        matcher {
+            usingStrings(":appbrand0", ":appbrand1", ":appbrand2")
+            methods {
+                add {
+                    modifiers = Modifier.STATIC or Modifier.PUBLIC
+                    classNetQueue.clazz.let { returnType = it.name }
+                }
+            }
+        }
+    }
     private val classNetDispatcher by dexClass()
-    private val classIOnSceneEnd by dexClass()
-    private val classCallbackIface by dexClass()
+    private val classIOnSceneEnd by dexClass {
+        matcher {
+            modifiers = Modifier.INTERFACE
+            interfaceCount(0)
+
+            methods {
+                count = 1
+                add {
+                    name = "onSceneEnd"
+                    paramCount = 4
+                    paramTypes("int", "int", "java.lang.String", classNetSceneBase.getDescriptorString()!!)
+                    returnType = "void"
+                }
+            }
+        }
+    }
+    private val classCallbackIface by dexClass {
+        matcher {
+            modifiers = Modifier.INTERFACE or Modifier.ABSTRACT
+            methods {
+                add {
+                    returnType = "int"
+                    paramCount = 5
+                    paramTypes("int", "int", "java.lang.String", null, classNetSceneBase.getDescriptorString()!!)
+                }
+            }
+        }
+    }
     private val classReqResp by dexClass()
 
     // 关键方法 //
-    private val methodGetNetQueue by dexMethod()
-    private val methodNetDispatch by dexMethod()
+    private val methodGetNetQueue by dexMethod {
+        val kernelName = classMmKernel.getDescriptorString() ?: ""
+        val queueName = classNetQueue.getDescriptorString() ?: ""
+        matcher {
+            declaredClass = kernelName
+            modifiers = Modifier.STATIC or Modifier.PUBLIC
+            returnType = queueName
+        }
+    }
+//    private val methodNetDispatch by dexMethod()
 
     private val cgiReqClassMap = mutableMapOf<Int, Class<*>>()
 
@@ -77,215 +227,61 @@ object WePacketHelper : ApiHookItem(), IResolveDex {
 
     @SuppressLint("NonUniqueDexKitData")
     override fun resolveDex(dexKit: DexKitBridge) {
-        // 查找 Protobuf 基类
-        classProtoBase.find(dexKit) {
+        val wrapperName = classRawReq.clazz.superclass!!
+        val candidates = dexKit.findClass {
             matcher {
-                usingEqStrings("Cannot use this method")
-                methods {
-                    add {
-                        name = "op"
-                        paramTypes("int", "java.lang.Object[]")
-                    }
-                }
-            }
-        }
-
-        // 查找 RawReq
-        classRawReq.find(dexKit) {
-            matcher {
+                superClass = wrapperName.name
                 fields {
-                    count(1)
-                    add { type = "byte[]" }
-                }
-
-                methods {
-                    add {
-                        name = "<init>"
-                        paramTypes("byte[]")
-                    }
-
-                    add {
-                        name = "op"
-                        paramTypes("int", "java.lang.Object[]")
-                        returnType = "int"
-                        opNames(
-                            opNames = emptyList(),
-                            matchType = OpCodeMatchType.Contains,
-                            opCodeSize = IntRange(0, 10)
-                        )
-                    }
-
-                    add {
-                        name = "toByteArray"
-                        returnType = "byte[]"
-                        invokeMethods {
-                            add {
-                                declaredClass = "java.lang.System"
-                                name = "arraycopy"
-                            }
-                        }
-                    }
+                    count(2)
+                    add { type = "int" }
+                    add { type = "java.util.LinkedList" }
                 }
             }
         }
 
-
-        val wrapperName = classRawReq.clazz.superclass
-        if (wrapperName != null) {
-            val candidates = dexKit.findClass {
+        for (candidate in candidates) {
+            val isMsgReq = dexKit.findMethod {
+                searchInClass(listOf(candidate))
                 matcher {
-                    superClass = wrapperName.name
-                    fields {
-                        count(2)
-                        add { type = "int" }
-                        add { type = "java.util.LinkedList" }
-                    }
+                    name = "op"
+                    addUsingField { name = "BaseRequest" }
                 }
-            }
+            }.isEmpty()
 
-            for (candidate in candidates) {
-                val isMsgReq = dexKit.findMethod {
-                    searchInClass(listOf(candidate))
-                    matcher {
-                        name = "op"
-                        addUsingField { name = "BaseRequest" }
-                    }
-                }.isEmpty()
-
-                if (isMsgReq) {
-                    classNewSendMsgReq.setDescriptor(candidate.name)
-                    break
-                }
+            if (isMsgReq) {
+                classNewSendMsgReq.setDescriptor(candidate.name)
+                break
             }
         }
 
-        val protoBaseName = classProtoBase.getDescriptorString() ?: ""
-        classConfigBuilder.find(dexKit) {
-            searchPackages("com.tencent.mm.modelbase")
-
+        val cbIface = classCallbackIface.clazz
+        val callbackMethod = dexKit.findMethod {
+            searchInClass(listOf(classCallbackIface.getClassData(dexKit)))
             matcher {
-                fields {
-                    countMin(10)
-                    add { type = protoBaseName }
-                    add { type = protoBaseName }
-                    add { type = "java.lang.String" }
-                }
+                paramCount = 5
             }
-        }
+        }.first()
 
-        // 查找响应 GenericResp
-        classGenericResp.find(dexKit) {
+        val reqRespName = callbackMethod.paramTypes[3]
+        classReqResp.setDescriptor(reqRespName)
+
+        WeLogger.i(TAG, "found ReqResp base class: $reqRespName")
+
+        val dispatchMethod = dexKit.findMethod {
             matcher {
-                fields {
-                    countMax(1)
-                }
-
-                methods {
-                    add {
-                        name = "<init>"
-                        opNames(listOf("new-instance"), OpCodeMatchType.Contains)
-                    }
-                    add {
-                        name = "op"
-                        paramTypes("int", "java.lang.Object[]")
-                        returnType = "int"
-                        opNames(
-                            opNames = emptyList(),
-                            matchType = OpCodeMatchType.Contains,
-                            opCodeSize = IntRange(0, 10)
-                        )
-                    }
-                }
-            }
-        }
-
-        // 查找 NetSceneBase
-        classNetSceneBase.find(dexKit) {
-            matcher {
-                usingStrings("MicroMsg.NetSceneBase")
-                modifiers = Modifier.ABSTRACT
-                methods {
-                    add { usingNumbers(600000L) }
-                }
-            }
-        }
-
-        // 查找队列与核心单例
-        classNetQueue.find(dexKit) {
-            matcher {
-                usingStrings("MicroMsg.NetSceneQueue", "waiting2running waitingQueue_size =")
-            }
-        }
-
-        classMmKernel.find(dexKit) {
-            matcher {
-                usingStrings(":appbrand0", ":appbrand1", ":appbrand2")
-                methods {
-                    add {
-                        modifiers = Modifier.STATIC or Modifier.PUBLIC
-                        classNetQueue.clazz.let { returnType = it.name }
-                    }
-                }
-            }
-        }
-
-        val kernelName = classMmKernel.getDescriptorString() ?: ""
-        val queueName = classNetQueue.getDescriptorString() ?: ""
-        methodGetNetQueue.find(dexKit) {
-            matcher {
-                declaredClass = kernelName
                 modifiers = Modifier.STATIC or Modifier.PUBLIC
-                returnType = queueName
+                paramCount = 3
+                paramTypes(reqRespName.asClass, cbIface, bool)
             }
-        }
+        }.firstOrNull()
 
-        // 查找分发器与回调
-        val netSceneBaseName = classNetSceneBase.getDescriptorString() ?: ""
-        classCallbackIface.find(dexKit) {
-            matcher {
-                modifiers = Modifier.INTERFACE or Modifier.ABSTRACT
-                methods {
-                    add {
-                        returnType = "int"
-                        paramCount = 5
-                        paramTypes("int", "int", "java.lang.String", null, netSceneBaseName)
-                    }
-                }
-            }
-        }
-
-        val cbIfaceName = classCallbackIface.getDescriptorString() ?: ""
-        if (cbIfaceName.isNotEmpty()) {
-            val callbackMethod = dexKit.findMethod {
-                searchInClass(listOf(classCallbackIface.getClassData(dexKit)))
-                matcher {
-                    paramCount = 5
-                }
-            }.firstOrNull()
-
-            if (callbackMethod != null) {
-                val reqRespName = callbackMethod.paramTypes[3].name
-                classReqResp.setDescriptor(reqRespName)
-
-                WeLogger.i(TAG, "found ReqResp base class: $reqRespName")
-
-                val dispatchMethod = dexKit.findMethod {
-                    matcher {
-                        modifiers = Modifier.STATIC or Modifier.PUBLIC
-                        paramCount = 3
-                        paramTypes(reqRespName, cbIfaceName, "boolean")
-                    }
-                }.firstOrNull()
-
-                if (dispatchMethod != null) {
-                    classNetDispatcher.setDescriptor(dispatchMethod.className)
-                    methodNetDispatch.setDescriptor(
-                        dispatchMethod.className,
-                        dispatchMethod.methodName,
-                        dispatchMethod.methodSign
-                    )
-                }
-            }
+        if (dispatchMethod != null) {
+            classNetDispatcher.setDescriptor(dispatchMethod.className)
+//            methodNetDispatch.setDescriptor(
+//                dispatchMethod.className,
+//                dispatchMethod.methodName,
+//                dispatchMethod.methodSign
+//            )
         }
 
         try {
@@ -317,7 +313,7 @@ object WePacketHelper : ApiHookItem(), IResolveDex {
                         }
                     }
                 }
-            }.firstOrNull() ?: throw NoSuchElementException("无法通过 FuncId 681 定位 Wrapper 类")
+            }.firstOrNull() ?: throw NoSuchElementException("failed to locate wrapper class based on FuncId 681")
 
             val wrapperClassName = wrapperClassData.name
 
@@ -325,42 +321,10 @@ object WePacketHelper : ApiHookItem(), IResolveDex {
             val realProtoClass = wrapperClass.declaredFields.firstOrNull { field ->
                 val type = field.type
                 !type.isBuiltin && isExtendsBaseProtoBuf(type)
-            }?.type ?: throw NoSuchElementException("在 Wrapper 类中未找到实体字段")
+            }?.type ?: throw NoSuchElementException("failed to find field in wrapper class")
 
-            WeLogger.i(TAG, "oplog 定位成功 ${realProtoClass.name}")
+            WeLogger.i(TAG, "located oplog successfully: ${realProtoClass.name}")
             classOplogReq.setDescriptor(realProtoClass.name)
-        }
-
-        classIOnSceneEnd.find(dexKit) {
-            matcher {
-                modifiers = Modifier.INTERFACE
-                interfaceCount(0)
-
-                methods {
-                    count = 1
-                    add {
-                        name = "onSceneEnd"
-                        paramCount = 4
-                        paramTypes("int", "int", "java.lang.String", netSceneBaseName)
-                        returnType = "void"
-                    }
-                }
-            }
-        }
-
-        classNetScenePat.find(dexKit) {
-            matcher {
-                classNetSceneBase.clazz.let { superClass = it.name }
-
-                methods {
-                    add {
-                        name = "getType"
-                        returnType = "int"
-                        usingNumbers(849)
-                    }
-                }
-                usingStrings("/cgi-bin/micromsg-bin/sendpat")
-            }
         }
     }
 

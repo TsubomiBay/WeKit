@@ -95,13 +95,9 @@ object PipVoip : SwitchHookItem(), IResolveDex {
     private const val FLAG_SUPPORTS_PICTURE_IN_PICTURE = 0x400000
     private const val RESIZE_MODE_RESIZEABLE = 2
 
-    private val classVoipActivityProxy by dexClass()
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        classVoipActivityProxy.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.ILinkVoipVideoActivityProxy-")
-            }
+    private val classVoipActivityProxy by dexClass {
+        matcher {
+            usingEqStrings("MicroMsg.ILinkVoipVideoActivityProxy-")
         }
     }
 }

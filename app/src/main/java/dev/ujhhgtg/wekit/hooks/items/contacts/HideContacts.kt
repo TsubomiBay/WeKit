@@ -406,17 +406,76 @@ object HideContacts : ClickableHookItem(), IResolveDex {
     }
 
 //    private val methodMainAdapterPerformSearch by dexMethod()
-    private val methodAddressMvvmListPreprocessList by dexMethod()
-    private val methodChatroomContactAdapterInitCursor by dexMethod()
-    private val methodVoipLaunchNotify by dexMethod()
-    private val methodVoipLaunchIncomingCardAsync by dexMethod()
-    private val methodVoipAcceptIncomingCall by dexMethod()
-    private val methodVoipStartAcceptVoip by dexMethod()
-    private val methodVoipPlaySound by dexMethod()
-    private val methodVoipShowFloatingCard by dexMethod()
-    private val methodVoipServiceExSetInviteContent by dexMethod()
-    private val methodVoipServiceExReject by dexMethod()
-    private val methodVoipBubbleHelperInsertMsg by dexMethod()
+    private val methodAddressMvvmListPreprocessList by dexMethod {
+        matcher {
+            declaredClass = "com.tencent.mm.ui.contact.address.AddressLiveList"
+            usingEqStrings("snapshotList")
+        }
+    }
+    private val methodChatroomContactAdapterInitCursor by dexMethod {
+        searchPackages("com.tencent.mm.ui.contact")
+        matcher {
+            declaredClass {
+                usingEqStrings("MicroMsg.ChatroomContactAdapter", "get display show head return null, user[%s] pos[%d]")
+            }
+
+            invokeMethods {
+                add {
+                    declaredClass = "android.widget.BaseAdapter"
+                    name = "notifyDataSetChanged"
+                }
+            }
+        }
+    }
+    private val methodVoipLaunchNotify by dexMethod {
+        matcher {
+            usingEqStrings("MicroMsg.VoIPMP.CoreV2", "launchNotify")
+        }
+    }
+    private val methodVoipLaunchIncomingCardAsync by dexMethod {
+        matcher {
+            // 8.0.76 changed from "launchInComingCardAsync: " to "[volume report] launchInComingCardAsync: "
+            usingStrings("MicroMsg.VoIPMP.CoreV2", "launchInComingCardAsync: ")
+        }
+    }
+    private val methodVoipAcceptIncomingCall by dexMethod {
+        searchPackages("com.tencent.mm.plugin.voip")
+        matcher {
+            usingEqStrings("MicroMsg.VoipIncomingCallManager", "acceptIncomingCal, roomInfo:")
+        }
+    }
+    private val methodVoipStartAcceptVoip by dexMethod {
+        searchPackages("com.tencent.mm.plugin.voip")
+        matcher {
+            usingEqStrings("MicroMsg.VoipIncomingCallManager", "startAcceptVoIP, roomInfo:")
+        }
+    }
+    private val methodVoipPlaySound by dexMethod {
+        matcher {
+            usingEqStrings("MicroMsg.RingPlayer", "playSound, type: %s, changeStreamType: %s, shake: %s")
+        }
+    }
+    private val methodVoipShowFloatingCard by dexMethod {
+        matcher {
+            usingEqStrings(".ui.voip.VoipFloatView")
+            paramCount = 8
+        }
+    }
+    private val methodVoipServiceExSetInviteContent by dexMethod {
+        matcher {
+            usingEqStrings("MicroMsg.Voip.VoipServiceEx", "Failed to setInviteContent during calling, status =")
+        }
+    }
+    private val methodVoipServiceExReject by dexMethod {
+        matcher {
+            usingEqStrings("MicroMsg.Voip.VoipServiceEx", "Failed to reject with calling, status =")
+        }
+    }
+    private val methodVoipBubbleHelperInsertMsg by dexMethod {
+        matcher {
+            usingEqStrings("MicroMsg.VoIPBubbleHelper", "insertMsg() called with: voipInfo = ")
+        }
+    }
 
 //    private val classVoipService by dexClass()
 //    private val classVoipManager by dexClass()
@@ -426,149 +485,4 @@ object HideContacts : ClickableHookItem(), IResolveDex {
 //    private val classVoipFloatCard by dexClass()
 //    private val classRecentForwardInfoHelperV3 by dexClass()
 //    private val classContactRecommendHelperV3 by dexClass()
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-//        methodMainAdapterPerformSearch.find(dexKit) {
-//            searchPackages("com.tencent.mm.plugin.fts.ui")
-//            matcher {
-//                usingEqStrings("MicroMsg.FTS.FTSMainAdapter", "tryReSortUIUnit, relevantSearchUIUnitIdx: (%d)<->chatRoomUIUnitIdx: (%d)")
-//            }
-//        }
-
-        methodAddressMvvmListPreprocessList.find(dexKit) {
-            matcher {
-                declaredClass = "com.tencent.mm.ui.contact.address.AddressLiveList"
-                usingEqStrings("snapshotList")
-            }
-        }
-
-        methodChatroomContactAdapterInitCursor.find(dexKit) {
-            searchPackages("com.tencent.mm.ui.contact")
-            matcher {
-                declaredClass {
-                    usingEqStrings("MicroMsg.ChatroomContactAdapter", "get display show head return null, user[%s] pos[%d]")
-                }
-
-                invokeMethods {
-                    add {
-                        declaredClass = "android.widget.BaseAdapter"
-                        name = "notifyDataSetChanged"
-                    }
-                }
-            }
-        }
-
-        methodVoipLaunchNotify.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.VoIPMP.CoreV2", "launchNotify")
-            }
-        }
-
-        methodVoipLaunchIncomingCardAsync.find(dexKit) {
-            matcher {
-                // 8.0.76 changed from "launchInComingCardAsync: " to "[volume report] launchInComingCardAsync: "
-                usingStrings("MicroMsg.VoIPMP.CoreV2", "launchInComingCardAsync: ")
-            }
-        }
-
-        methodVoipAcceptIncomingCall.find(dexKit) {
-            searchPackages("com.tencent.mm.plugin.voip")
-            matcher {
-                usingEqStrings("MicroMsg.VoipIncomingCallManager", "acceptIncomingCal, roomInfo:")
-            }
-        }
-
-        methodVoipStartAcceptVoip.find(dexKit) {
-            searchPackages("com.tencent.mm.plugin.voip")
-            matcher {
-                usingEqStrings("MicroMsg.VoipIncomingCallManager", "startAcceptVoIP, roomInfo:")
-            }
-        }
-
-        methodVoipPlaySound.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.RingPlayer", "playSound, type: %s, changeStreamType: %s, shake: %s")
-            }
-        }
-
-        methodVoipShowFloatingCard.find(dexKit) {
-            matcher {
-                usingEqStrings(".ui.voip.VoipFloatView")
-                paramCount = 8
-            }
-        }
-
-        methodVoipServiceExSetInviteContent.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.Voip.VoipServiceEx", "Failed to setInviteContent during calling, status =")
-            }
-        }
-
-        methodVoipServiceExReject.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.Voip.VoipServiceEx", "Failed to reject with calling, status =")
-            }
-        }
-
-        methodVoipBubbleHelperInsertMsg.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.VoIPBubbleHelper", "insertMsg() called with: voipInfo = ")
-            }
-        }
-
-//        classVoipService.find(dexKit) {
-//            searchPackages("com.tencent.mm.plugin.voip")
-//            matcher {
-//                usingStrings("MicroMsg.Voip.VoipService")
-//            }
-//        }
-
-//        classVoipManager.find(dexKit) {
-//            searchPackages("com.tencent.mm.plugin.voip")
-//            matcher {
-//                usingStrings("MicroMsg.Voip.VoipMgr")
-//            }
-//        }
-//
-//        classIncomingVoipInvite.find(dexKit) {
-//            searchPackages("com.tencent.mm.plugin.voip")
-//            matcher {
-//                usingStrings("/cgi-bin/micromsg-bin/voipinvite")
-//            }
-//        }
-//
-//        classIncomingVoipILinkInvite.find(dexKit) {
-//            searchPackages("com.tencent.mm.plugin.voip")
-//            matcher {
-//                usingStrings("/cgi-bin/micromsg-bin/voipilinkinvite")
-//            }
-//        }
-//
-//        classMultiTalkInvite.find(dexKit) {
-//            searchPackages("com.tencent.mm.plugin.multitalk")
-//            matcher {
-//                usingStrings("MicroMsg.MT.MultiTalkManager")
-//            }
-//        }
-//
-//        classVoipFloatCard.find(dexKit) {
-//            matcher {
-//                usingStrings("voip_content_voice", "voip_content_video")
-//            }
-//        }
-//
-//        classRecentForwardInfoHelperV3.find(dexKit) {
-//            searchPackages("com.tencent.mm.ui.contact")
-//            matcher {
-//                usingStrings("MicroMsg.RecentForwardInfoStorage", "[query] list size=")
-//            }
-//        }
-//
-//        classContactRecommendHelperV3.find(dexKit) {
-//            searchPackages("com.tencent.mm.ui.contact")
-//            matcher {
-//                usingStrings("MicroMsg.ContactRecommendHelper", "getChatroomByMembername cnt:%d time:%d")
-//            }
-//        }
-    }
 }

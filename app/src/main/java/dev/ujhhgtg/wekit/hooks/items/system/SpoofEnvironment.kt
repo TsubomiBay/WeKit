@@ -37,18 +37,14 @@ object SpoofEnvironment : SwitchHookItem(), IResolveDex {
         }
     }
 
-    private val methodIsVpnEnabled by dexMethod()
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodIsVpnEnabled.find(dexKit) {
-            matcher {
-                declaredClass {
-                    usingEqStrings("MicroMsg.WalletSecurityUtilService")
-                }
-
-                usingEqStrings("connectivity")
-                usingNumbers(4)
+    private val methodIsVpnEnabled by dexMethod {
+        matcher {
+            declaredClass {
+                usingEqStrings("MicroMsg.WalletSecurityUtilService")
             }
+
+            usingEqStrings("connectivity")
+            usingNumbers(4)
         }
     }
 }

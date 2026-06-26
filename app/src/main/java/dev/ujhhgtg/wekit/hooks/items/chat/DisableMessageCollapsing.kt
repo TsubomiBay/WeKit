@@ -11,14 +11,10 @@ import org.luckypray.dexkit.DexKitBridge
 @HookItem(name = "禁用消息折叠", categories = ["聊天"], description = "阻止聊天消息被折叠")
 object DisableMessageCollapsing : SwitchHookItem(), IResolveDex {
 
-    private val methodFoldMsg by dexMethod()
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodFoldMsg.find(dexKit) {
-            matcher {
-                usingStrings(".msgsource.sec_msg_node.clip-len")
-                paramTypes(BInt, CharSequence::class.java, null, bool, null, null)
-            }
+    private val methodFoldMsg by dexMethod {
+        matcher {
+            usingStrings(".msgsource.sec_msg_node.clip-len")
+            paramTypes(BInt, CharSequence::class.java, null, bool, null, null)
         }
     }
 

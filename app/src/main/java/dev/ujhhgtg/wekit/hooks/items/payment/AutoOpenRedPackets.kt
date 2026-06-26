@@ -40,7 +40,6 @@ import dev.ujhhgtg.wekit.ui.utils.showComposeDialog
 import dev.ujhhgtg.wekit.utils.WeLogger
 import dev.ujhhgtg.wekit.utils.android.showToast
 import org.json.JSONObject
-import org.luckypray.dexkit.DexKitBridge
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.concurrent.thread
 import kotlin.random.Random
@@ -52,10 +51,40 @@ object AutoOpenRedPackets : ClickableHookItem(), WeDatabaseListenerApi.IInsertLi
 
     private val TAG = This.Class.simpleName
 
-    private val classReceiveLuckyMoney by dexClass()
-    private val classOpenLuckyMoney by dexClass()
-    private val methodReceiveOnGYNetEnd by dexMethod()
-    private val methodOpenOnGYNetEnd by dexMethod()
+    private val classReceiveLuckyMoney by dexClass {
+        matcher {
+            methods {
+                add {
+                    name = "<init>"
+                    usingEqStrings("MicroMsg.NetSceneReceiveLuckyMoney")
+                }
+            }
+        }
+    }
+    private val classOpenLuckyMoney by dexClass {
+        matcher {
+            methods {
+                add {
+                    name = "<init>"
+                    usingEqStrings("MicroMsg.NetSceneOpenLuckyMoney")
+                }
+            }
+        }
+    }
+    private val methodReceiveOnGYNetEnd by dexMethod {
+        matcher {
+            declaredClass(classReceiveLuckyMoney.clazz)
+            name = "onGYNetEnd"
+            paramCount = 3
+        }
+    }
+    private val methodOpenOnGYNetEnd by dexMethod {
+        matcher {
+            declaredClass(classOpenLuckyMoney.clazz)
+            name = "onGYNetEnd"
+            paramCount = 3
+        }
+    }
 
     private val currentRedPacketMap = ConcurrentHashMap<String, RedPacketInfo>()
 
@@ -357,46 +386,6 @@ object AutoOpenRedPackets : ClickableHookItem(), WeDatabaseListenerApi.IInsertLi
                 },
                 dismissButton = { TextButton(onDismiss) { Text("取消") } }
             )
-        }
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        classReceiveLuckyMoney.find(dexKit) {
-            matcher {
-                methods {
-                    add {
-                        name = "<init>"
-                        usingEqStrings("MicroMsg.NetSceneReceiveLuckyMoney")
-                    }
-                }
-            }
-        }
-
-        classOpenLuckyMoney.find(dexKit) {
-            matcher {
-                methods {
-                    add {
-                        name = "<init>"
-                        usingEqStrings("MicroMsg.NetSceneOpenLuckyMoney")
-                    }
-                }
-            }
-        }
-
-        methodOpenOnGYNetEnd.find(dexKit) {
-            matcher {
-                declaredClass = classOpenLuckyMoney.getDescriptorString()!!
-                name = "onGYNetEnd"
-                paramCount = 3
-            }
-        }
-
-        methodReceiveOnGYNetEnd.find(dexKit) {
-            matcher {
-                declaredClass = classReceiveLuckyMoney.getDescriptorString()!!
-                name = "onGYNetEnd"
-                paramCount = 3
-            }
         }
     }
 

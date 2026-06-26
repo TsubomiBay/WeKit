@@ -12,13 +12,9 @@ import org.luckypray.dexkit.DexKitBridge
 @HookItem(name = "对话框 API", categories = ["API"], description = "提供显示微信自带对话框的能力")
 object WeAlertDialogApi : ApiHookItem(), IResolveDex {
 
-    private val classMmAlert by dexClass()
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        classMmAlert.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.MMAlert")
-            }
+    private val classMmAlert by dexClass {
+        matcher {
+            usingEqStrings("MicroMsg.MMAlert")
         }
     }
 

@@ -31,14 +31,10 @@ object AntiMessageRecall3 : ClickableHookItem(), IResolveDex {
 
     private var recallOutgoing by prefOption("recall_outgoing", false)
 
-    private val methodXmlParser by dexMethod()
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodXmlParser.find(dexKit) {
-            searchPackages("com.tencent.mm.sdk.platformtools")
-            matcher {
-                usingEqStrings("MicroMsg.SDK.XmlParser", "[ %s ]")
-            }
+    private val methodXmlParser by dexMethod {
+        searchPackages("com.tencent.mm.sdk.platformtools")
+        matcher {
+            usingEqStrings("MicroMsg.SDK.XmlParser", "[ %s ]")
         }
     }
 

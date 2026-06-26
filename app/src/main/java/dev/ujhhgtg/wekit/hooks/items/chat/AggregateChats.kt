@@ -47,7 +47,7 @@ import org.json.JSONObject
 import org.luckypray.dexkit.DexKitBridge
 import java.lang.reflect.Modifier as JavaModifier
 
-@HookItem(name = "对话归拢", categories = ["聊天"], description = "将多个对话归拢在一个文件夹内，设置对话头像时请同时打开自定义好友头像")
+@HookItem(name = "对话归拢", categories = ["聊天"], description = "将多个对话归拢在一个文件夹内\n设置对话头像需同时启用「自定义好友本地头像」")
 object AggregateChats : ClickableHookItem(),
     WeDatabaseListenerApi.IQueryListener,
     WeStartActivityApi.IStartActivityListener,
@@ -58,20 +58,110 @@ object AggregateChats : ClickableHookItem(),
     private var folders by prefOption("chat_folders", "[]")
     private const val CONTAINER_ACTIVITY_FALLBACK = "com.tencent.mm.ui.conversation.ConvBoxServiceConversationUI"
 
-    private val classMainUi by dexClass()
-    private val classContainerActivity by dexClass()
-    private val classMmActivity by dexClass()
-    private val methodMainUiOnResume by dexMethod()
-    private val methodLauncherStartChatting by dexMethod()
-    private val methodBaseConversationStartChatting by dexMethod()
-    private val methodContainerOnCreate by dexMethod()
-    private val methodContainerOnResume by dexMethod()
-    private val methodContainerOnDestroy by dexMethod()
-    private val methodContainerFinish by dexMethod()
-    private val methodSetMmTitle by dexMethod()
-    private val methodSetConversationTitle by dexMethod()
-    private val methodSqliteWrapperRawQuery by dexMethod()
-    private val methodConversationStorageQueryByParent by dexMethod()
+    private val classMainUi by dexClass {
+        matcher {
+            className = "com.tencent.mm.ui.conversation.MainUI"
+        }
+    }
+    private val classContainerActivity by dexClass {
+        matcher {
+            className = CONTAINER_ACTIVITY_FALLBACK
+        }
+    }
+    private val classMmActivity by dexClass {
+        matcher {
+            className = "com.tencent.mm.ui.MMActivity"
+        }
+    }
+    private val methodMainUiOnResume by dexMethod {
+        matcher {
+            declaredClass(classMainUi.clazz)
+            name = "onResume"
+            paramCount = 0
+            returnType(Void.TYPE)
+        }
+    }
+    private val methodLauncherStartChatting by dexMethod(allowFailure = true) {
+        matcher {
+            declaredClass = "com.tencent.mm.ui.LauncherUI"
+            name = "startChatting"
+            paramTypes("java.lang.String", "android.os.Bundle", "boolean")
+            returnType(Void.TYPE)
+        }
+    }
+    private val methodBaseConversationStartChatting by dexMethod(allowFailure = true) {
+        matcher {
+            usingStrings("try startChatting, ishow:%b, post: %b")
+            paramTypes("java.lang.String", "android.os.Bundle", "boolean", "boolean")
+            returnType("void")
+        }
+    }
+    private val methodContainerOnCreate by dexMethod(allowFailure = true) {
+        matcher {
+            declaredClass(classContainerActivity.clazz)
+            name = "onCreate"
+            paramTypes("android.os.Bundle")
+            returnType(Void.TYPE)
+        }
+    }
+    private val methodContainerOnResume by dexMethod(allowFailure = true) {
+        matcher {
+            declaredClass(classContainerActivity.clazz.superclass!!)
+            name = "onResume"
+            paramCount = 0
+            returnType(Void.TYPE)
+        }
+    }
+    private val methodContainerOnDestroy by dexMethod(allowFailure = true) {
+        matcher {
+            declaredClass(classContainerActivity.clazz.superclass!!)
+            name = "onDestroy"
+            paramCount = 0
+            returnType(Void.TYPE)
+        }
+    }
+    private val methodContainerFinish by dexMethod(allowFailure = true) {
+        matcher {
+            declaredClass(classContainerActivity.clazz)
+            name = "finish"
+            paramCount = 0
+            returnType(Void.TYPE)
+        }
+    }
+    private val methodSetMmTitle by dexMethod(allowFailure = true) {
+        matcher {
+            declaredClass(classMmActivity.clazz)
+            name = "setMMTitle"
+            paramTypes("java.lang.String")
+            returnType(Void.TYPE)
+        }
+    }
+    private val methodSetConversationTitle by dexMethod(allowFailure = true) {
+        matcher {
+            declaredClass(classContainerActivity.clazz.superclass!!)
+            name = "setTitle"
+            paramTypes("java.lang.String")
+            returnType(Void.TYPE)
+        }
+    }
+    private val methodSqliteWrapperRawQuery by dexMethod(allowFailure = true) {
+        matcher {
+            modifiers = JavaModifier.PUBLIC
+            usingEqStrings("sql is null ", "DB IS CLOSED ! {%s}")
+            paramTypes("java.lang.String", "java.lang.String[]", "int")
+            returnType("android.database.Cursor")
+        }
+    }
+    private val methodConversationStorageQueryByParent by dexMethod(allowFailure = true) {
+        matcher {
+            usingStrings(
+                "select * from rconversation where ",
+                " order by flag desc, conversationTime desc"
+            )
+            paramTypes("int", "java.util.List", "java.lang.String", "int")
+            returnType("android.database.Cursor")
+        }
+    }
 
     @Volatile
     private var activeFolderId: String? = null
@@ -123,126 +213,6 @@ object AggregateChats : ClickableHookItem(),
             intent.setClassName(param.thisObject as? Context ?: return, containerActivityName())
         }
         applyFolderContainerIntent(intent, folderId)
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        classMainUi.find(dexKit) {
-            matcher {
-                className = "com.tencent.mm.ui.conversation.MainUI"
-            }
-        }
-
-        classContainerActivity.find(dexKit) {
-            matcher {
-                className = CONTAINER_ACTIVITY_FALLBACK
-            }
-        }
-
-        classMmActivity.find(dexKit) {
-            matcher {
-                className = "com.tencent.mm.ui.MMActivity"
-            }
-        }
-
-        methodMainUiOnResume.find(dexKit) {
-            matcher {
-                declaredClass(classMainUi.clazz)
-                name = "onResume"
-                paramCount = 0
-                returnType(Void.TYPE)
-            }
-        }
-
-        methodLauncherStartChatting.find(dexKit, allowFailure = true) {
-            matcher {
-                declaredClass = "com.tencent.mm.ui.LauncherUI"
-                name = "startChatting"
-                paramTypes("java.lang.String", "android.os.Bundle", "boolean")
-                returnType(Void.TYPE)
-            }
-        }
-
-        methodBaseConversationStartChatting.find(dexKit, allowFailure = true) {
-            matcher {
-                usingStrings("try startChatting, ishow:%b, post: %b")
-                paramTypes("java.lang.String", "android.os.Bundle", "boolean", "boolean")
-                returnType("void")
-            }
-        }
-
-        methodContainerOnCreate.find(dexKit, allowFailure = true) {
-            matcher {
-                declaredClass(classContainerActivity.clazz)
-                name = "onCreate"
-                paramTypes("android.os.Bundle")
-                returnType(Void.TYPE)
-            }
-        }
-
-        methodContainerOnResume.find(dexKit, allowFailure = true) {
-            matcher {
-                declaredClass(classContainerActivity.clazz.superclass!!)
-                name = "onResume"
-                paramCount = 0
-                returnType(Void.TYPE)
-            }
-        }
-
-        methodContainerOnDestroy.find(dexKit, allowFailure = true) {
-            matcher {
-                declaredClass(classContainerActivity.clazz.superclass!!)
-                name = "onDestroy"
-                paramCount = 0
-                returnType(Void.TYPE)
-            }
-        }
-
-        methodContainerFinish.find(dexKit, allowFailure = true) {
-            matcher {
-                declaredClass(classContainerActivity.clazz)
-                name = "finish"
-                paramCount = 0
-                returnType(Void.TYPE)
-            }
-        }
-
-        methodSetMmTitle.find(dexKit, allowFailure = true) {
-            matcher {
-                declaredClass(classMmActivity.clazz)
-                name = "setMMTitle"
-                paramTypes("java.lang.String")
-                returnType(Void.TYPE)
-            }
-        }
-
-        methodSetConversationTitle.find(dexKit, allowFailure = true) {
-            matcher {
-                declaredClass(classContainerActivity.clazz.superclass!!)
-                name = "setTitle"
-                paramTypes("java.lang.String")
-                returnType(Void.TYPE)
-            }
-        }
-
-        methodSqliteWrapperRawQuery.find(dexKit, allowFailure = true) {
-            matcher {
-                modifiers = JavaModifier.PUBLIC
-                usingEqStrings("sql is null ", "DB IS CLOSED ! {%s}")
-                paramTypes("java.lang.String", "java.lang.String[]", "int")
-                returnType("android.database.Cursor")
-            }
-        }
-
-        methodConversationStorageQueryByParent.find(dexKit, allowFailure = true) {
-            matcher {
-                usingStrings(
-                    "select * from rconversation where ",
-                    " order by flag desc, conversationTime desc"
-                )
-                paramTypes("int", "java.util.List", "java.lang.String", "int")
-                returnType("android.database.Cursor")
-            }
-        }
     }
 
     private fun hookMainUiRefresh() {

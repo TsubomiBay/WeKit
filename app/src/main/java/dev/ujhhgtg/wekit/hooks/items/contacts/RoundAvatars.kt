@@ -29,8 +29,22 @@ object RoundAvatars : ClickableHookItem(), IResolveDex {
 
     private const val KEY_ROUND_AVATAR = "round_avatar_radius_factor"
 
-    private val methodLoadAvatar by dexMethod()
-    private val ctorAvatarCreate by dexConstructor()
+    private val methodLoadAvatar by dexMethod {
+        matcher {
+            paramTypes(
+                "android.widget.ImageView",
+                "java.lang.String",
+                "float",
+                "boolean"
+            )
+            usingEqStrings("MicroMsg.AvatarDrawable")
+        }
+    }
+    private val ctorAvatarCreate by dexConstructor {
+        matcher {
+            usingEqStrings("workerScope", "username")
+        }
+    }
     private val methodAvatarModify by dexMethod()
 
     private val radiusFactor: Float
@@ -59,24 +73,6 @@ object RoundAvatars : ClickableHookItem(), IResolveDex {
     }
 
     override fun resolveDex(dexKit: DexKitBridge) {
-        methodLoadAvatar.find(dexKit) {
-            matcher {
-                paramTypes(
-                    "android.widget.ImageView",
-                    "java.lang.String",
-                    "float",
-                    "boolean"
-                )
-                usingEqStrings("MicroMsg.AvatarDrawable")
-            }
-        }
-
-        ctorAvatarCreate.find(dexKit) {
-            matcher {
-                usingEqStrings("workerScope", "username")
-            }
-        }
-
         val modifyMethods = dexKit.findMethod {
             matcher {
                 usingEqStrings("workerScope", "username")

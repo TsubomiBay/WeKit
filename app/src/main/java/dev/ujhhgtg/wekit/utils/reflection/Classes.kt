@@ -1,20 +1,22 @@
 package dev.ujhhgtg.wekit.utils.reflection
 
-inline val int get() = Int::class.javaPrimitiveType!!
+inline val int: Class<Int> get() = Integer.TYPE
 
-inline val bool get() = Boolean::class.javaPrimitiveType!!
+inline val bool: Class<Boolean> get() = java.lang.Boolean.TYPE
 
-inline val byte get() = Byte::class.javaPrimitiveType!!
+inline val byte: Class<Byte> get() = java.lang.Byte.TYPE
 
-inline val short get() = Short::class.javaPrimitiveType!!
+inline val short: Class<Short> get() = java.lang.Short.TYPE
 
-inline val long get() = Long::class.javaPrimitiveType!!
+inline val long: Class<Long> get() = java.lang.Long.TYPE
 
-inline val float get() = Float::class.javaPrimitiveType!!
+inline val float: Class<Float> get() = java.lang.Float.TYPE
 
-inline val double get() = Double::class.javaPrimitiveType!!
+inline val double: Class<Double> get() = java.lang.Double.TYPE
 
-inline val char get() = Char::class.javaPrimitiveType!!
+inline val char: Class<Char> get() = Character.TYPE
+
+inline val void: Class<Void> get() = Void.TYPE
 
 inline val BInt get() = Int::class.java
 

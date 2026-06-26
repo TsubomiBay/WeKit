@@ -40,6 +40,7 @@ import androidx.lifecycle.lifecycleScope
 import com.composables.icons.materialsymbols.MaterialSymbols
 import com.composables.icons.materialsymbols.outlined.Account_circle
 import com.composables.icons.materialsymbols.outlined.Add_circle
+import com.composables.icons.materialsymbols.outlined.Auto_delete
 import com.composables.icons.materialsymbols.outlined.Block
 import com.composables.icons.materialsymbols.outlined.Bug_report
 import com.composables.icons.materialsymbols.outlined.Build_circle
@@ -193,14 +194,20 @@ class MainSettingsScreen : BasePrefsScreen(BuildConfig.TAG) {
         addSwitchPreference(
             key = Preferences.NO_DEX_RESOLVE,
             title = "禁用版本适配",
-            summary = "开启后不会弹出 DEX 查找对话框，未适配功能将不会被加载",
+            summary = "不弹出 DEX 查找对话框，未适配功能将不会被加载",
             icon = MaterialSymbols.Outlined.Block
         )
         addPreference(
             title = "重置适配信息",
-            summary = "清除全部 DEX 适配信息, 等待下次启动时重新适配",
+            summary = "清除 DEX 缓存, 等待下次启动时重新适配",
             icon = MaterialSymbols.Outlined.Build_circle,
             onClick = { ResetDexCache.onClick(it) }
+        )
+        addSwitchPreference(
+            key = Preferences.RESET_DEX_ON_HOT_UPDATE,
+            title = "宿主热更新时重新适配",
+            summary = "宿主热更新时是否重置适配 DEX 缓存, 可能导致频繁重新适配 (实验性)",
+            icon = MaterialSymbols.Outlined.Auto_delete
         )
 
         addCategory("配置")

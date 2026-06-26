@@ -41,7 +41,14 @@ object WeChatMessageViewApi : ApiHookItem(), IResolveDex {
 
     private val TAG = nameOf(WeChatMessageViewApi)
 
-    private val methodChatItemOnBindView by dexMethod()
+    private val methodChatItemOnBindView by dexMethod {
+        matcher {
+            usingStrings(
+                "MicroMsg.MvvmChattingItem",
+                "[onBindView]"
+            )
+        }
+    }
 
     override fun onEnable() {
         methodChatItemOnBindView.hookAfter {
@@ -78,16 +85,5 @@ object WeChatMessageViewApi : ApiHookItem(), IResolveDex {
             .firstMethod { name = "getItem" }
             .invoke(msgId)!!
         return MessageInfo(msgInfo)
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodChatItemOnBindView.find(dexKit) {
-            matcher {
-                usingStrings(
-                    "MicroMsg.MvvmChattingItem",
-                    "[onBindView]"
-                )
-            }
-        }
     }
 }

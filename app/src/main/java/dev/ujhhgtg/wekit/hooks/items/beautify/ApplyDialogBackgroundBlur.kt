@@ -40,9 +40,34 @@ object ApplyDialogBackgroundBlur : ClickableHookItem(), IResolveDex {
     const val KEY_BLUR_RADIUS = "blur_radius"
     const val DEFAULT_BLUR_RADIUS = 20
 
-    private val classMmAlertDialog by dexClass()
-    private val classMmProgressDialog by dexClass()
-    private val classMmQuickDialog by dexClass()
+    private val classMmAlertDialog by dexClass {
+        matcher {
+            usingEqStrings("MicroMsg.MMAlertDialog", "dialog dismiss error!")
+        }
+    }
+    private val classMmProgressDialog by dexClass {
+        matcher {
+            usingEqStrings($$"com/tencent/mm/ui/widget/dialog/MMProgressDialog$Builder", "show")
+        }
+    }
+    private val classMmQuickDialog by dexClass {
+        matcher {
+            superClass("android.app.Dialog")
+            addField {
+                type = "int"
+                modifiers(Modifier.STATIC or Modifier.FINAL)
+            }
+            addFieldForType("android.widget.TextView")
+            addFieldForType("com.tencent.mm.ui.widget.imageview.WeImageView")
+            addFieldForType("android.widget.ProgressBar")
+            addFieldForType("android.view.View")
+            addFieldForType("int")
+            addField {
+                type = "boolean"
+                modifiers(Modifier.FINAL)
+            }
+        }
+    }
 
     override fun onEnable() {
         listOf(
@@ -76,39 +101,6 @@ object ApplyDialogBackgroundBlur : ClickableHookItem(), IResolveDex {
 
             addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
             attributes.blurBehindRadius = WePrefs.getIntOrDef(KEY_BLUR_RADIUS, DEFAULT_BLUR_RADIUS)
-        }
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        classMmAlertDialog.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.MMAlertDialog", "dialog dismiss error!")
-            }
-        }
-
-        classMmProgressDialog.find(dexKit) {
-            matcher {
-                usingEqStrings($$"com/tencent/mm/ui/widget/dialog/MMProgressDialog$Builder", "show")
-            }
-        }
-
-        classMmQuickDialog.find(dexKit) {
-            matcher {
-                superClass("android.app.Dialog")
-                addField {
-                    type = "int"
-                    modifiers(Modifier.STATIC or Modifier.FINAL)
-                }
-                addFieldForType("android.widget.TextView")
-                addFieldForType("com.tencent.mm.ui.widget.imageview.WeImageView")
-                addFieldForType("android.widget.ProgressBar")
-                addFieldForType("android.view.View")
-                addFieldForType("int")
-                addField {
-                    type = "boolean"
-                    modifiers(Modifier.FINAL)
-                }
-            }
         }
     }
 

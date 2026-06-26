@@ -63,15 +63,11 @@ object NoCloseVideoPlayerOnClick : SwitchHookItem(), IResolveDex {
         }
     }
 
-    private val methodVideoOnTouchListenerOnTouch by dexMethod()
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodVideoOnTouchListenerOnTouch.find(dexKit) {
-            searchPackages("com.tencent.mm.plugin.sns.ui")
-            matcher {
-                name = "onTouch"
-                usingEqStrings("com/tencent/mm/plugin/sns/ui/SnsOnlineVideoActivity$5", $$"android/view/View$OnTouchListener", "onTouch")
-            }
+    private val methodVideoOnTouchListenerOnTouch by dexMethod {
+        searchPackages("com.tencent.mm.plugin.sns.ui")
+        matcher {
+            name = "onTouch"
+            usingEqStrings("com/tencent/mm/plugin/sns/ui/SnsOnlineVideoActivity$5", $$"android/view/View$OnTouchListener", "onTouch")
         }
     }
 }

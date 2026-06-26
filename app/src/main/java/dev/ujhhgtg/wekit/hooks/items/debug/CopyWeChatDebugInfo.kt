@@ -52,15 +52,11 @@ object CopyWeChatDebugInfo : ClickableHookItem(), IResolveDex {
         unhook.unhook()
     }
 
-    private val methodOnClick by dexMethod()
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodOnClick.find(dexKit) {
-            searchPackages("com.tencent.mm.plugin.setting.ui.setting")
-            matcher {
-                name = "onClick"
-                usingEqStrings("com/tencent/mm/plugin/setting/ui/setting/SettingsAboutMMHeaderPreference$1", $$"android/view/View$OnClickListener", "onClick")
-            }
+    private val methodOnClick by dexMethod {
+        searchPackages("com.tencent.mm.plugin.setting.ui.setting")
+        matcher {
+            name = "onClick"
+            usingEqStrings("com/tencent/mm/plugin/setting/ui/setting/SettingsAboutMMHeaderPreference$1", $$"android/view/View$OnClickListener", "onClick")
         }
     }
 }

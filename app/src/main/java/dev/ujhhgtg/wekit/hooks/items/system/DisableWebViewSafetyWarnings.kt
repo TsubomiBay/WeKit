@@ -8,8 +8,20 @@ import org.luckypray.dexkit.DexKitBridge
 
 @HookItem(name = "禁用 WebView 安全警告", categories = ["系统与隐私"], description = "禁用 WebView 相关的安全警告提示")
 object DisableWebViewSafetyWarnings : SwitchHookItem(), IResolveDex {
-    private val methodGetIsInterceptEnabled by dexMethod()
-    private val methodGetIsUrlSafe by dexMethod()
+    private val methodGetIsInterceptEnabled by dexMethod {
+        matcher {
+            usingEqStrings(
+                "MicroMsg.WebViewHighRiskAdH5Interceptor",
+                "isInterceptEnabled, expt="
+            )
+        }
+    }
+    private val methodGetIsUrlSafe by dexMethod {
+        matcher {
+            declaredClass(methodGetIsInterceptEnabled.method.declaringClass)
+            usingEqStrings("http", "https")
+        }
+    }
 
     override fun onEnable() {
         methodGetIsInterceptEnabled.hookBefore {
@@ -18,24 +30,6 @@ object DisableWebViewSafetyWarnings : SwitchHookItem(), IResolveDex {
 
         methodGetIsUrlSafe.hookBefore {
             result = true
-        }
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodGetIsInterceptEnabled.find(dexKit) {
-            matcher {
-                usingEqStrings(
-                    "MicroMsg.WebViewHighRiskAdH5Interceptor",
-                    "isInterceptEnabled, expt="
-                )
-            }
-        }
-
-        methodGetIsUrlSafe.find(dexKit) {
-            matcher {
-                declaredClass(methodGetIsInterceptEnabled.method.declaringClass)
-                usingEqStrings("http", "https")
-            }
         }
     }
 }

@@ -12,12 +12,49 @@ import org.luckypray.dexkit.DexKitBridge
 @HookItem(name = "引用消息直达", categories = ["聊天"], description = "点击被引用消息时直接跳转至对应消息")
 object QuotedMessageDirectJump : SwitchHookItem(), IResolveDex {
 
-    private val methodClickEvent by dexMethod()
-    private val methodClickToPositionEvent by dexMethod()
-    private val methodGetQuoteMessageInfo by dexMethod()
-    private val methodChattingContextGetTalker by dexMethod()
-    private val classEnumQuoteJumpToPositionSource by dexClass()
-    private val classChattingContext by dexClass()
+    private val methodClickEvent by dexMethod {
+        searchPackages("com.tencent.mm.ui.chatting.viewitems")
+        matcher {
+            usingEqStrings(
+                "MicroMsg.msgquote.QuoteMsgSourceClickLogic",
+                "handleItemClickEvent,quotedMsg is null!"
+            )
+        }
+    }
+    private val methodClickToPositionEvent by dexMethod {
+        matcher {
+            declaredClass(methodClickEvent.method.declaringClass)
+            usingEqStrings(
+                "MicroMsg.msgquote.QuoteMsgSourceClickLogic",
+                "handleItemClickToPositionEvent,quotedMsg is null!"
+            )
+        }
+    }
+    private val methodGetQuoteMessageInfo by dexMethod {
+        matcher {
+            declaredClass(methodClickEvent.method.declaringClass)
+            usingStrings(
+                "MicroMsg.msgquote.QuoteMsgSourceClickLogic",
+                "%s msgId:%s msgSvrId:%s"
+            )
+        }
+    }
+    private val classEnumQuoteJumpToPositionSource by dexClass(allowFailure = true) {
+        matcher {
+            usingEqStrings("QuoteLongClickFromQuoteView", "QuoteClickFromTextPreviewLocateView")
+        }
+    }
+    private val classChattingContext by dexClass {
+        matcher {
+            usingEqStrings("MicroMsg.ChattingContext", "[notifyDataSetChange]")
+        }
+    }
+    private val methodChattingContextGetTalker by dexMethod {
+        matcher {
+            declaredClass(classChattingContext.clazz)
+            usingEqStrings("getTalker returns null.")
+        }
+    }
 
     override fun onEnable() {
         methodClickEvent.hookBefore {
@@ -77,57 +114,6 @@ object QuotedMessageDirectJump : SwitchHookItem(), IResolveDex {
                 )
             }
             result = null
-        }
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodClickEvent.find(dexKit) {
-            searchPackages("com.tencent.mm.ui.chatting.viewitems")
-            matcher {
-                usingEqStrings(
-                    "MicroMsg.msgquote.QuoteMsgSourceClickLogic",
-                    "handleItemClickEvent,quotedMsg is null!"
-                )
-            }
-        }
-
-        methodClickToPositionEvent.find(dexKit) {
-            matcher {
-                declaredClass(methodClickEvent.method.declaringClass)
-                usingEqStrings(
-                    "MicroMsg.msgquote.QuoteMsgSourceClickLogic",
-                    "handleItemClickToPositionEvent,quotedMsg is null!"
-                )
-            }
-        }
-
-        methodGetQuoteMessageInfo.find(dexKit) {
-            matcher {
-                declaredClass(methodClickEvent.method.declaringClass)
-                usingStrings(
-                    "MicroMsg.msgquote.QuoteMsgSourceClickLogic",
-                    "%s msgId:%s msgSvrId:%s"
-                )
-            }
-        }
-
-        classChattingContext.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.ChattingContext", "[notifyDataSetChange]")
-            }
-        }
-
-        methodChattingContextGetTalker.find(dexKit) {
-            matcher {
-                declaredClass(classChattingContext.clazz)
-                usingEqStrings("getTalker returns null.")
-            }
-        }
-
-        classEnumQuoteJumpToPositionSource.find(dexKit, allowFailure = true) {
-            matcher {
-                usingEqStrings("QuoteLongClickFromQuoteView", "QuoteClickFromTextPreviewLocateView")
-            }
         }
     }
 }

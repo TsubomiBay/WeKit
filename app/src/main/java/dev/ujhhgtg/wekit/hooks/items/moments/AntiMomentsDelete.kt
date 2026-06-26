@@ -13,7 +13,7 @@ object AntiMomentsDelete : SwitchHookItem(), WeDatabaseListenerApi.IUpdateListen
 
     private val TAG = This.Class.simpleName
     private const val TBL_SNS_INFO = "SnsInfo"
-    private const val DEFAULT_MARK = "[拦截删除]"
+    const val INTERCEPT_MARK = "[拦截删除]"
 
     override fun onUpdate(table: String, values: ContentValues, whereClause: String?, whereArgs: Array<String>?, conflictAlgorithm: Int) {
         try {
@@ -71,10 +71,10 @@ object AntiMomentsDelete : SwitchHookItem(), WeDatabaseListenerApi.IUpdateListen
             val currentVal = json.get(key)
 
             if (currentVal is String) {
-                if (currentVal.contains(DEFAULT_MARK)) {
+                if (currentVal.contains(INTERCEPT_MARK)) {
                     return false
                 }
-                val newVal = "$DEFAULT_MARK $currentVal "
+                val newVal = "$INTERCEPT_MARK $currentVal "
                 proto.setLenUtf8(fieldNumber, 0, newVal)
                 return true
             }

@@ -25,8 +25,37 @@ import org.luckypray.dexkit.DexKitBridge
 object RemoveChatMessageContextMenuItems : ClickableHookItem(), IResolveDex {
 
     // although there are multiple addMenuItem() methods, i only found the usage of those two in the context menu of chat messages
-    private val methodAddMenuItem1 by dexMethod()
-    private val methodAddMenuItem2 by dexMethod()
+    private val methodAddMenuItem1 by dexMethod {
+        matcher {
+            declaredClass {
+                addFieldForType(List::class.javaObjectType)
+                addFieldForType(CharSequence::class.java)
+                addFieldForType(Context::class.java)
+            }
+
+            name = "add"
+            paramTypes(
+                BInt,
+                BInt,
+                BInt,
+                CharSequence::class.java
+            )
+            returnType(MenuItem::class.java)
+        }
+    }
+    private val methodAddMenuItem2 by dexMethod {
+        matcher {
+            declaredClass(methodAddMenuItem1.method.declaringClass)
+            paramTypes(
+                BInt,
+                BInt,
+                BInt,
+                CharSequence::class.java,
+                BInt
+            )
+            returnType(MenuItem::class.java)
+        }
+    }
     private const val KEY_REMOVED_ITEM_NAMES = "removed_menu_item_names"
     private const val DEFAULT_REMOVED_ITEM_NAMES =
         "收藏,总结,提醒,翻译,搜一搜,编辑,打开,相关表情,合拍,查看专辑,静音播放,听筒播放,背景播放"
@@ -57,41 +86,6 @@ object RemoveChatMessageContextMenuItems : ClickableHookItem(), IResolveDex {
                     .firstField { type = List::class }
                     .get()!! as ArrayList<*>
                 list.removeAt(list.size - 1)
-            }
-        }
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodAddMenuItem1.find(dexKit) {
-            matcher {
-                declaredClass {
-                    addFieldForType(List::class.javaObjectType)
-                    addFieldForType(CharSequence::class.java)
-                    addFieldForType(Context::class.java)
-                }
-
-                name = "add"
-                paramTypes(
-                    BInt,
-                    BInt,
-                    BInt,
-                    CharSequence::class.java
-                )
-                returnType(MenuItem::class.java)
-            }
-        }
-
-        methodAddMenuItem2.find(dexKit) {
-            matcher {
-                declaredClass(methodAddMenuItem1.method.declaringClass)
-                paramTypes(
-                    BInt,
-                    BInt,
-                    BInt,
-                    CharSequence::class.java,
-                    BInt
-                )
-                returnType(MenuItem::class.java)
             }
         }
     }

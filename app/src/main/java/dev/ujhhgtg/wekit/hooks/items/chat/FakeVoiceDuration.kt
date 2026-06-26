@@ -22,7 +22,14 @@ import org.luckypray.dexkit.DexKitBridge
 @HookItem(name = "伪装语音时长", categories = ["聊天"], description = "预设定伪装发送语音显示的时长")
 object FakeVoiceDuration : ClickableHookItem(), IResolveDex {
 
-    private val methodVoiceRecorderGetLength by dexMethod()
+    private val methodVoiceRecorderGetLength by dexMethod {
+        matcher {
+            declaredClass {
+                usingEqStrings("MicroMsg.SceneVoice.Recorder", "Stop file success: ")
+            }
+            returnType = "long"
+        }
+    }
     private const val KEY_DURATION = "fake_voice_duration"
 
     override fun onEnable() {
@@ -57,17 +64,6 @@ object FakeVoiceDuration : ClickableHookItem(), IResolveDex {
                         onDismiss()
                     }) { Text("确定") }
                 })
-        }
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodVoiceRecorderGetLength.find(dexKit) {
-            matcher {
-                declaredClass {
-                    usingEqStrings("MicroMsg.SceneVoice.Recorder", "Stop file success: ")
-                }
-                returnType = "long"
-            }
         }
     }
 }

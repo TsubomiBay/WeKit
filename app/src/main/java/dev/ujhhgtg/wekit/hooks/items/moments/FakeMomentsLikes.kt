@@ -1,10 +1,11 @@
 package dev.ujhhgtg.wekit.hooks.items.moments
 
 import android.content.ContentValues
-import dev.ujhhgtg.reflekt.utils.createInstance
 import com.tencent.mm.plugin.sns.ui.SnsCommentFooter
 import com.tencent.mm.protocal.protobuf.SnsObject
 import dev.ujhhgtg.comptime.nameOf
+import dev.ujhhgtg.reflekt.reflekt
+import dev.ujhhgtg.reflekt.utils.createInstance
 import dev.ujhhgtg.wekit.hooks.api.core.WeDatabaseApi
 import dev.ujhhgtg.wekit.hooks.api.core.WeDatabaseListenerApi
 import dev.ujhhgtg.wekit.hooks.api.ui.WeMomentsContextMenuApi
@@ -15,12 +16,11 @@ import dev.ujhhgtg.wekit.ui.utils.StarIcon
 import dev.ujhhgtg.wekit.ui.utils.showComposeDialog
 import dev.ujhhgtg.wekit.utils.WeLogger
 import dev.ujhhgtg.wekit.utils.android.showToast
-import dev.ujhhgtg.reflekt.reflekt
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.LinkedList
 
-@HookItem(name = "朋友圈伪集赞", categories = ["朋友圈"], description = "自定义朋友圈点赞用户列表")
+@HookItem(name = "伪集赞", categories = ["朋友圈"], description = "自定义朋友圈点赞用户列表")
 object FakeMomentsLikes : SwitchHookItem(), WeMomentsContextMenuApi.IMenuItemsProvider,
     WeDatabaseListenerApi.IUpdateListener {
 
@@ -88,7 +88,7 @@ object FakeMomentsLikes : SwitchHookItem(), WeMomentsContextMenuApi.IMenuItemsPr
         try {
             injectFakeLikes(table, values)
         } catch (e: Throwable) {
-            WeLogger.e(TAG, "处理数据库更新异常", e)
+            WeLogger.e(TAG, "failed to handle database update", e)
         }
     }
 

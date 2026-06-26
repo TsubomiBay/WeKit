@@ -13,7 +13,23 @@ import java.lang.reflect.Field
 @HookItem(name = "阻止微信清理模块数据", categories = ["系统与隐私"], description = "阻止微信「设置 → 存储空间 → 清理」删除模块数据")
 object PreventModuleDataDeletion : SwitchHookItem(), IResolveDex {
 
-    private val methodNativeFileSystemEntryDelete by dexMethod()
+    private val methodNativeFileSystemEntryDelete by dexMethod {
+        matcher {
+            declaredClass {
+                usingEqStrings("VFS.NativeFileSystem", "Base directory exists but is not a directory, delete and proceed.Base path: ")
+            }
+
+            paramTypes(String::class.java)
+            returnType = "boolean"
+
+            invokeMethods {
+                add {
+                    declaredClass = "java.io.File"
+                    name = "delete"
+                }
+            }
+        }
+    }
     private lateinit var basePathField: Field
 
     override fun onEnable() {
@@ -31,26 +47,6 @@ object PreventModuleDataDeletion : SwitchHookItem(), IResolveDex {
             val path = "$basePath/$relPath"
             if (path.contains(BuildConfig.TAG) || path.contains("Layout Inspect")) {
                 result = true
-            }
-        }
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodNativeFileSystemEntryDelete.find(dexKit) {
-            matcher {
-                declaredClass {
-                    usingEqStrings("VFS.NativeFileSystem", "Base directory exists but is not a directory, delete and proceed.Base path: ")
-                }
-
-                paramTypes(String::class.java)
-                returnType = "boolean"
-
-                invokeMethods {
-                    add {
-                        declaredClass = "java.io.File"
-                        name = "delete"
-                    }
-                }
             }
         }
     }

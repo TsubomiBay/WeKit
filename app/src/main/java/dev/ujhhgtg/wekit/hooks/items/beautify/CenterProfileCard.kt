@@ -98,7 +98,12 @@ object CenterProfileCard : ClickableHookItem(), IResolveDex {
     private var aliasTextPref by WePrefs.prefOption(KEY_ALIAS_TEXT, "")
     private var signatureTextPref by WePrefs.prefOption(KEY_SIGNATURE_TEXT, "")
 
-    private val methodBindAccountInfo by dexMethod()
+    private val methodBindAccountInfo by dexMethod {
+        matcher {
+            declaredClass = "com.tencent.mm.pluginsdk.ui.preference.AccountInfoPreference"
+            paramTypes(View::class.java)
+        }
+    }
 
     override fun onEnable() {
         methodBindAccountInfo.hookAfter {
@@ -277,15 +282,6 @@ object CenterProfileCard : ClickableHookItem(), IResolveDex {
                     }
                 },
             )
-        }
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodBindAccountInfo.find(dexKit) {
-            matcher {
-                declaredClass = "com.tencent.mm.pluginsdk.ui.preference.AccountInfoPreference"
-                paramTypes(View::class.java)
-            }
         }
     }
 

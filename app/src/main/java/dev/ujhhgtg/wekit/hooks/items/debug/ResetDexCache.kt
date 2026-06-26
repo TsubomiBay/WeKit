@@ -10,8 +10,9 @@ import dev.ujhhgtg.wekit.ui.content.Button
 import dev.ujhhgtg.wekit.ui.content.TextButton
 import dev.ujhhgtg.wekit.ui.utils.showComposeDialog
 import dev.ujhhgtg.wekit.utils.android.showToastSuspend
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @HookItem(name = "重置适配信息", categories = ["调试"], description = "清除全部 DEX 适配信息, 等待下次启动时重新适配")
@@ -30,7 +31,8 @@ object ResetDexCache : ClickableHookItem() {
                 dismissButton = { TextButton(onDismiss) { Text("取消") } },
                 confirmButton = {
                     Button(onClick = {
-                        runBlocking(Dispatchers.IO) {
+                        CoroutineScope(Dispatchers.IO).launch {
+                            showToastSuspend("正在清除...")
                             DexCacheManager.clearAllCache()
                             showToastSuspend("清除成功!")
                             withContext(Dispatchers.Main) {

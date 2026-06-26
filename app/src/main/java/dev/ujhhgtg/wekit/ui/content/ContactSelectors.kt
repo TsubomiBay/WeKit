@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -26,7 +25,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,7 +45,7 @@ import java.text.Collator
 import java.util.Locale
 
 @Composable
-private fun BaseContactSelector(
+fun BaseContactSelector(
     title: String,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
@@ -57,16 +55,20 @@ private fun BaseContactSelector(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
     modifier: Modifier = Modifier,
-    selectionKey: Any, // Triggers re-grouping immediately when selection changes
-    isSelected: (IWeContact) -> Boolean, // Identifies if a contact belongs in the top section
-    leadingControl: @Composable LazyItemScope.(IWeContact) -> Unit,
+    selectionKey: Any,
+    isSelected: (IWeContact) -> Boolean,
+    showConfirmButton: Boolean = true,
+    dismissButtonText: String = "取消",
+    avatarModelProvider: ((IWeContact) -> Any)? = { it.avatarUrl },
+    subtitleProvider: ((IWeContact) -> String)? = { it.wxId },
+    leadingControl: @Composable (LazyItemScope.(IWeContact) -> Unit)? = null,
+    trailingControl: @Composable (LazyItemScope.(IWeContact) -> Unit)? = null,
     onItemClick: (IWeContact) -> Unit
 ) {
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val alphabet = remember { ('A'..'Z').toList() + '#' }
 
-    // Native Android ICU Transliterator to convert Hanzi to Latin Pinyin strings
     val transliterator = remember {
         try {
             Transliterator.getInstance("Han-Latin; Any-Latin; Latin-ASCII")
@@ -75,7 +77,6 @@ private fun BaseContactSelector(
         }
     }
 
-    // 1. Group items, prioritizing selected items at the absolute top
     val groupedContacts = remember(filteredContacts, transliterator, selectionKey) {
         filteredContacts.groupBy { contact ->
             if (isSelected(contact)) {
@@ -88,7 +89,6 @@ private fun BaseContactSelector(
                 if (firstChar.uppercaseChar() in 'A'..'Z') {
                     firstChar.uppercaseChar().toString()
                 } else if (transliterator != null) {
-                    // Converts e.g., "张" -> "zhāng" -> "zhang" -> "Z"
                     val pinyin = transliterator.transliterate(firstChar.toString())
                     val initial = pinyin.firstOrNull()?.uppercaseChar() ?: '#'
                     if (initial in 'A'..'Z') initial.toString() else "#"
@@ -97,7 +97,6 @@ private fun BaseContactSelector(
                 }
             }
         }.toSortedMap { c1, c2 ->
-            // Sorting order: "Selected" -> 'A'..'Z' -> "#"
             when {
                 c1 == c2 -> 0
                 c1 == "Selected" -> -1
@@ -109,14 +108,13 @@ private fun BaseContactSelector(
         }
     }
 
-    // 2. Map group headers to flat absolute index positions inside LazyColumn
     val sectionIndices = remember(groupedContacts) {
         val mapping = mutableMapOf<String, Int>()
         var currentFlatIndex = 0
         groupedContacts.forEach { (letter, contactsInGroup) ->
             mapping[letter] = currentFlatIndex
-            currentFlatIndex += 1 // For the sticky header item
-            currentFlatIndex += contactsInGroup.size // For the row items
+            currentFlatIndex += 1
+            currentFlatIndex += contactsInGroup.size
         }
         mapping
     }
@@ -144,7 +142,6 @@ private fun BaseContactSelector(
                         .weight(1f)
                         .fillMaxWidth()
                 ) {
-                    // Main Contact Scroll List
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.weight(1f),
@@ -177,10 +174,13 @@ private fun BaseContactSelector(
                                         .padding(vertical = 12.dp, horizontal = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    leadingControl(contact)
-                                    Spacer(modifier = Modifier.width(12.dp))
+                                    if (leadingControl != null) {
+                                        leadingControl(contact)
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                    }
+
                                     AsyncImage(
-                                        model = contact.avatarUrl,
+                                        model = avatarModelProvider?.invoke(contact) ?: contact.avatarUrl,
                                         contentDescription = null,
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier
@@ -188,23 +188,28 @@ private fun BaseContactSelector(
                                             .clip(RoundedCornerShape(6.dp))
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
-                                    Column {
+
+                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = contact.displayName,
                                             style = MaterialTheme.typography.bodyLarge
                                         )
                                         Text(
-                                            text = contact.wxId,
+                                            text = subtitleProvider?.invoke(contact) ?: contact.wxId,
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
+                                    }
+
+                                    if (trailingControl != null) {
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        trailingControl(contact)
                                     }
                                 }
                             }
                         }
                     }
 
-                    // A-Z Sidebar Navigator
                     Column(
                         modifier = Modifier
                             .fillMaxHeight()
@@ -224,7 +229,6 @@ private fun BaseContactSelector(
                                 },
                                 modifier = Modifier
                                     .clickable {
-                                        // Find target fallback letter, ensuring we skip jumping to "Selected" via A-Z index clicks
                                         val targetLetter = sectionIndices.keys
                                             .filter { it != "Selected" }
                                             .firstOrNull { it.first() >= letter }
@@ -246,16 +250,18 @@ private fun BaseContactSelector(
             }
         },
         dismissButton = {
-            TextButton(onDismiss) { Text("取消") }
+            TextButton(onDismiss) { Text(dismissButtonText) }
         },
-        confirmButton = {
-            Button(
-                onClick = onConfirm,
-                enabled = confirmButtonEnabled
-            ) {
-                Text(confirmButtonText)
+        confirmButton = if (showConfirmButton) {
+            {
+                Button(
+                    onClick = onConfirm,
+                    enabled = confirmButtonEnabled
+                ) {
+                    Text(confirmButtonText)
+                }
             }
-        }
+        } else null
     )
 }
 

@@ -121,14 +121,10 @@ object ConversationGrouping : SwitchHookItem(), IResolveDex {
         }
     }
 
-    private val methodOnTabCreate by dexMethod()
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodOnTabCreate.find(dexKit) {
-            matcher {
-                declaredClass = "com.tencent.mm.ui.conversation.MainUI"
-                usingEqStrings("MicroMsg.MainUI", "onTabCreate, %d")
-            }
+    private val methodOnTabCreate by dexMethod {
+        matcher {
+            declaredClass = "com.tencent.mm.ui.conversation.MainUI"
+            usingEqStrings("MicroMsg.MainUI", "onTabCreate, %d")
         }
     }
 }

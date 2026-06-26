@@ -386,13 +386,9 @@ object ApplyGlobalBackground : ClickableHookItem(), IResolveDex {
         view.setTag(VIEW_TAG, VIEW_TAG_CONTENT)
     }
 
-    private val methodChattingBackgroundComponentInitBg by dexMethod()
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodChattingBackgroundComponentInitBg.find(dexKit) {
-            matcher {
-                usingStrings("MicroMsg.ChattingUI.ChattingBackgroundComponent", "initBackground:")
-            }
+    private val methodChattingBackgroundComponentInitBg by dexMethod {
+        matcher {
+            usingStrings("MicroMsg.ChattingUI.ChattingBackgroundComponent", "initBackground:")
         }
     }
 }

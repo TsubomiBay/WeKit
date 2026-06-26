@@ -52,8 +52,23 @@ object EmojiGameControl : SwitchHookItem(), IResolveDex {
     private const val MD5_DICE = "08f223fa83f1ca34e143d1e580252c7c"
     private val TAG = This.Class.simpleName
 
-    private val methodRandom by dexMethod()
-    private val methodPanelClick by dexMethod()
+    private val methodRandom by dexMethod {
+        searchPackages("com.tencent.mm.sdk.platformtools")
+        matcher {
+            returnType(Int::class.java)
+            paramTypes(Int::class.java, Int::class.java)
+            invokeMethods {
+                add { name = "currentTimeMillis" }
+                add { name = "nextInt" }
+                matchType = MatchType.Contains
+            }
+        }
+    }
+    private val methodPanelClick by dexMethod {
+        matcher {
+            usingEqStrings("MicroMsg.EmojiPanelClickListener")
+        }
+    }
 
     private var valMorra = 0
     private var valDice = 0
@@ -65,27 +80,6 @@ object EmojiGameControl : SwitchHookItem(), IResolveDex {
     private enum class DiceFace(val index: Int, val chineseName: String) {
         ONE(0, "1"), TWO(1, "2"), THREE(2, "3"),
         FOUR(3, "4"), FIVE(4, "5"), SIX(5, "6")
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodRandom.find(dexKit) {
-            searchPackages("com.tencent.mm.sdk.platformtools")
-            matcher {
-                returnType(Int::class.java)
-                paramTypes(Int::class.java, Int::class.java)
-                invokeMethods {
-                    add { name = "currentTimeMillis" }
-                    add { name = "nextInt" }
-                    matchType = MatchType.Contains
-                }
-            }
-        }
-
-        methodPanelClick.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.EmojiPanelClickListener")
-            }
-        }
     }
 
     override fun onEnable() {

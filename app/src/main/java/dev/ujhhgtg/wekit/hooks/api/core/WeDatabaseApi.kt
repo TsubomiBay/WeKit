@@ -36,11 +36,38 @@ import java.lang.reflect.Modifier
 @HookItem(name = "数据库服务", categories = ["API"], description = "提供数据库直接查询能力")
 object WeDatabaseApi : ApiHookItem(), IResolveDex {
 
-    private val classMmKernel by dexClass()
-    private val methodGetStorage by dexMethod()
-    private val classCoreStorage by dexClass()
-    private val classConfigStorage by dexClass()
-    private val classSqliteDbWrapper by dexClass()
+    private val classMmKernel by dexClass {
+        matcher {
+            usingEqStrings("MicroMsg.MMKernel", "Kernel not null, has initialized.")
+        }
+    }
+    private val methodGetStorage by dexMethod {
+        matcher {
+            declaredClass(classMmKernel.clazz)
+            modifiers = Modifier.PUBLIC or Modifier.STATIC
+            paramCount = 0
+            usingStrings("mCoreStorage not initialized!")
+        }
+    }
+    private val classCoreStorage by dexClass {
+        matcher {
+            usingEqStrings(
+                "MMKernel.CoreStorage",
+                "CheckData path[%s] blocksize:%s blockcount:%s availcount:%s"
+            )
+        }
+    }
+    private val classConfigStorage by dexClass {
+        searchPackages("com.tencent.mm.storage")
+        matcher {
+            usingEqStrings("MicroMsg.ConfigStorage", "shouldProcessEvent db is close :%s")
+        }
+    }
+    private val classSqliteDbWrapper by dexClass {
+        matcher {
+            usingEqStrings("MicroMsg.SqliteDB", "sql is null ")
+        }
+    }
 
     lateinit var db: SQLiteDatabase
 
@@ -270,45 +297,6 @@ object WeDatabaseApi : ApiHookItem(), IResolveDex {
 
         /** 获取群聊成员列表字符串 */
         const val GROUP_MEMBERS = "SELECT memberlist FROM chatroom WHERE chatroomname = '%s'"
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        classMmKernel.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.MMKernel", "Kernel not null, has initialized.")
-            }
-        }
-
-        classCoreStorage.find(dexKit) {
-            matcher {
-                usingEqStrings(
-                    "MMKernel.CoreStorage",
-                    "CheckData path[%s] blocksize:%s blockcount:%s availcount:%s"
-                )
-            }
-        }
-
-        methodGetStorage.find(dexKit) {
-            matcher {
-                declaredClass(classMmKernel.clazz)
-                modifiers = Modifier.PUBLIC or Modifier.STATIC
-                paramCount = 0
-                usingStrings("mCoreStorage not initialized!")
-            }
-        }
-
-        classConfigStorage.find(dexKit) {
-            searchPackages("com.tencent.mm.storage")
-            matcher {
-                usingEqStrings("MicroMsg.ConfigStorage", "shouldProcessEvent db is close :%s")
-            }
-        }
-
-        classSqliteDbWrapper.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.SqliteDB", "sql is null ")
-            }
-        }
     }
 
     override fun onEnable() {

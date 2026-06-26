@@ -139,31 +139,23 @@ object PredictiveBackGestures : ClickableHookItem(), IResolveDex {
         field.set(flags)
     }
 
-    private val methodChattingUIFragmentDoResume by dexMethod()
-
-    private val methodChattingUIFragmentDoPause by dexMethod()
-
-    private val classExitChattingUIFragmentRunnable by dexClass()
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodChattingUIFragmentDoResume.find(dexKit) {
-            matcher {
-                declaredClass = "${PackageNames.WECHAT}.ui.chatting.ChattingUIFragment"
-                usingEqStrings("doResume")
-            }
+    private val methodChattingUIFragmentDoResume by dexMethod {
+        matcher {
+            declaredClass = "${PackageNames.WECHAT}.ui.chatting.ChattingUIFragment"
+            usingEqStrings("doResume")
         }
+    }
 
-        methodChattingUIFragmentDoPause.find(dexKit) {
-            matcher {
-                declaredClass = "${PackageNames.WECHAT}.ui.chatting.ChattingUIFragment"
-                usingEqStrings("doPause")
-            }
+    private val methodChattingUIFragmentDoPause by dexMethod {
+        matcher {
+            declaredClass = "${PackageNames.WECHAT}.ui.chatting.ChattingUIFragment"
+            usingEqStrings("doPause")
         }
+    }
 
-        classExitChattingUIFragmentRunnable.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.SwipeBackLayout", "scrollToFinishActivity, Scrolling %B, hasTranslucent %B, hasCallPopOut %B")
-            }
+    private val classExitChattingUIFragmentRunnable by dexClass {
+        matcher {
+            usingEqStrings("MicroMsg.SwipeBackLayout", "scrollToFinishActivity, Scrolling %B, hasTranslucent %B, hasCallPopOut %B")
         }
     }
 

@@ -217,15 +217,83 @@ object StickersSync : ClickableHookItem(), IResolveDex {
         }
     }
 
-    private val methodGetEmojiGroupInfo by dexMethod()
-    private val methodAddAllGroupItems by dexMethod()
-    private val ctorGroupItemInfo by dexConstructor()
-    private val classEmojiMgrImpl by dexClass()
-    private val classEmojiStorageMgr by dexClass()
-    private val classEmojiInfoStorage by dexClass()
-    private val methodSaveEmojiThumb by dexMethod()
-    private val ctorResourceLoadOptions by dexConstructor()
-    private val methodDownloadImage by dexMethod()
+    private val methodGetEmojiGroupInfo by dexMethod {
+        matcher {
+            paramTypes(Int::class.java)
+            usingEqStrings("MicroMsg.emoji.EmojiGroupInfoStorage", "get Panel EmojiGroupInfo.")
+        }
+    }
+    private val methodAddAllGroupItems by dexMethod {
+        matcher {
+            usingEqStrings("data")
+            addInvoke {
+                usingEqStrings("checkScrollToPosition: ")
+            }
+        }
+    }
+    private val ctorGroupItemInfo by dexConstructor {
+        matcher {
+            usingEqStrings("emojiInfo", "sosDocId")
+        }
+    }
+    private val classEmojiMgrImpl by dexClass {
+        matcher {
+            methods {
+                add {
+                    usingEqStrings("MicroMsg.emoji.EmojiMgrImpl", "sendEmoji: context is null")
+                }
+            }
+        }
+    }
+    private val classEmojiStorageMgr by dexClass {
+        searchPackages("com.tencent.mm.storage")
+        matcher {
+            methods {
+                add {
+                    usingEqStrings("MicroMsg.emoji.EmojiStorageMgr", "EmojiStorageMgr: %s")
+                }
+            }
+        }
+    }
+    private val classEmojiInfoStorage by dexClass {
+        matcher {
+            methods {
+                add {
+                    usingEqStrings(
+                        "MicroMsg.emoji.EmojiInfoStorage",
+                        "md5 is null or invalue. md5:%s"
+                    )
+                }
+            }
+        }
+    }
+    private val methodSaveEmojiThumb by dexMethod {
+        matcher {
+            declaredClass("com.tencent.mm.storage.emotion.EmojiInfo")
+            usingEqStrings("save emoji thumb error")
+        }
+    }
+    private val ctorResourceLoadOptions by dexConstructor {
+        matcher {
+            declaredClass {
+                modifiers = Modifier.FINAL
+                addFieldForType(Any::class.java)
+                addField {
+                    type {
+                        superClass("java.lang.Enum")
+                    }
+                }
+                usingEqStrings("")
+            }
+
+            paramTypes(String::class.java)
+        }
+    }
+    private val methodDownloadImage by dexMethod {
+        matcher {
+            usingEqStrings("MicroMsg.Loader.DefaultImageDownloader.HttpClientFactory", "dz[httpURLConnectionGet 300]")
+        }
+    }
 
     private val stickersDir: Path by lazy {
         (KnownPaths.moduleData / "stickers")
@@ -397,94 +465,6 @@ object StickersSync : ClickableHookItem(), IResolveDex {
                 bytes, "image/png",
                 actualRetTypeInitArg2Type!!.createInstance(bytes)
             )
-        }
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodGetEmojiGroupInfo.find(dexKit) {
-            matcher {
-                paramTypes(Int::class.java)
-                usingEqStrings("MicroMsg.emoji.EmojiGroupInfoStorage", "get Panel EmojiGroupInfo.")
-            }
-        }
-
-        methodAddAllGroupItems.find(dexKit) {
-            matcher {
-                usingEqStrings("data")
-                addInvoke {
-                    usingEqStrings("checkScrollToPosition: ")
-                }
-            }
-        }
-
-        ctorGroupItemInfo.find(dexKit) {
-            matcher {
-                usingEqStrings("emojiInfo", "sosDocId")
-            }
-        }
-
-        classEmojiMgrImpl.find(dexKit) {
-            matcher {
-                methods {
-                    add {
-                        usingEqStrings("MicroMsg.emoji.EmojiMgrImpl", "sendEmoji: context is null")
-                    }
-                }
-            }
-        }
-
-        classEmojiStorageMgr.find(dexKit) {
-            searchPackages("com.tencent.mm.storage")
-            matcher {
-                methods {
-                    add {
-                        usingEqStrings("MicroMsg.emoji.EmojiStorageMgr", "EmojiStorageMgr: %s")
-                    }
-                }
-            }
-        }
-
-        classEmojiInfoStorage.find(dexKit) {
-            matcher {
-                methods {
-                    add {
-                        usingEqStrings(
-                            "MicroMsg.emoji.EmojiInfoStorage",
-                            "md5 is null or invalue. md5:%s"
-                        )
-                    }
-                }
-            }
-        }
-
-        methodSaveEmojiThumb.find(dexKit) {
-            matcher {
-                declaredClass("com.tencent.mm.storage.emotion.EmojiInfo")
-                usingEqStrings("save emoji thumb error")
-            }
-        }
-
-        ctorResourceLoadOptions.find(dexKit) {
-            matcher {
-                declaredClass {
-                    modifiers = Modifier.FINAL
-                    addFieldForType(Any::class.java)
-                    addField {
-                        type {
-                            superClass("java.lang.Enum")
-                        }
-                    }
-                    usingEqStrings("")
-                }
-
-                paramTypes(String::class.java)
-            }
-        }
-
-        methodDownloadImage.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.Loader.DefaultImageDownloader.HttpClientFactory", "dz[httpURLConnectionGet 300]")
-            }
         }
     }
 

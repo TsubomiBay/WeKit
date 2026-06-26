@@ -25,7 +25,11 @@ import kotlin.math.roundToInt
 object DisplayGroupMemberRoles : SwitchHookItem(), IResolveDex,
     WeChatMessageViewApi.ICreateViewListener {
 
-    private val methodGetChatroomData by dexMethod()
+    private val methodGetChatroomData by dexMethod {
+        matcher {
+            usingEqStrings("MicroMsg.ChatRoomMember", "getChatroomData hashMap is null!")
+        }
+    }
 
     // Pair<groupId: String, sender: String>, type: Int (1=owner, 2=admin, 3=member)
     private val resolvedRoles = LruCache<Pair<String, String>, Int>()
@@ -116,15 +120,6 @@ object DisplayGroupMemberRoles : SwitchHookItem(), IResolveDex,
         )
 
         textView.text = sb
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        // this is actually get group MEMBER data
-        methodGetChatroomData.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.ChatRoomMember", "getChatroomData hashMap is null!")
-            }
-        }
     }
 }
 

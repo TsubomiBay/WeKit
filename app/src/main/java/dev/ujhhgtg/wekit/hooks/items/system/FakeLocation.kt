@@ -15,9 +15,24 @@ import org.luckypray.dexkit.DexKitBridge
 @HookItem(name = "虚拟定位", categories = ["系统与隐私"], description = "预设定微信获取到的经纬度")
 object FakeLocation : ClickableHookItem(), IResolveDex {
 
-    private val methodListener by dexMethod()
-    private val methodListenerWgs84 by dexMethod()
-    private val methodDefaultManager by dexMethod()
+    private val methodListener by dexMethod {
+        matcher {
+            name = "onLocationChanged"
+            usingEqStrings("MicroMsg.SLocationListener")
+        }
+    }
+    private val methodListenerWgs84 by dexMethod {
+        matcher {
+            name = "onLocationChanged"
+            usingEqStrings("MicroMsg.SLocationListenerWgs84")
+        }
+    }
+    private val methodDefaultManager by dexMethod {
+        matcher {
+            name = "onLocationChanged"
+            usingEqStrings("MicroMsg.DefaultTencentLocationManager", "[mlocationListener]error:%d, reason:%s")
+        }
+    }
 
     private const val KEY_LAT = "fake_lat"
     private const val KEY_LNG = "fake_lng"
@@ -39,32 +54,6 @@ object FakeLocation : ClickableHookItem(), IResolveDex {
                         result = WePrefs.getFloatOrDef(KEY_LNG, 121.469170F)
                     }
                 }
-            }
-        }
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        // cx0.s
-        methodListener.find(dexKit) {
-            matcher {
-                name = "onLocationChanged"
-                usingEqStrings("MicroMsg.SLocationListener")
-            }
-        }
-
-        // cx0.t
-        methodListenerWgs84.find(dexKit) {
-            matcher {
-                name = "onLocationChanged"
-                usingEqStrings("MicroMsg.SLocationListenerWgs84")
-            }
-        }
-
-        // yd.c
-        methodDefaultManager.find(dexKit) {
-            matcher {
-                name = "onLocationChanged"
-                usingEqStrings("MicroMsg.DefaultTencentLocationManager", "[mlocationListener]error:%d, reason:%s")
             }
         }
     }

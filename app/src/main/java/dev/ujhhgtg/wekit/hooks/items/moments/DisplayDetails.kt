@@ -234,9 +234,18 @@ object DisplayDetails : ClickableHookItem(), IResolveDex {
 
     private val classImproveSnsInfo by dexClass()
 
-    private val classImproveInteractionLayout by dexClass()
+    private val classImproveInteractionLayout by dexClass {
+        matcher {
+            usingEqStrings("MicroMsg.Improve.InteractionLayout")
+        }
+    }
 
-    private val fieldInteractionSnsInfo by dexField()
+    private val fieldInteractionSnsInfo by dexField {
+        matcher {
+            declaredClass(classImproveInteractionLayout.clazz)
+            type(classImproveSnsInfo.clazz)
+        }
+    }
 
     private val fieldSnsId by dexField()
 
@@ -246,25 +255,17 @@ object DisplayDetails : ClickableHookItem(), IResolveDex {
 
     private val fieldType by dexField()
 
-    private val methodGetTimeString by dexMethod()
+    private val methodGetTimeString by dexMethod(allowFailure = true) {
+        matcher {
+            declaredClass(classImproveSnsInfo.clazz)
+            usingEqStrings("getTimeString")
+        }
+    }
 
     override fun resolveDex(dexKit: DexKitBridge) {
         classImproveSnsInfo.find(dexKit) {
             matcher {
                 usingEqStrings("ImproveInfo(name=")
-            }
-        }
-
-        classImproveInteractionLayout.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.Improve.InteractionLayout")
-            }
-        }
-
-        fieldInteractionSnsInfo.find(dexKit) {
-            matcher {
-                declaredClass(classImproveInteractionLayout.clazz)
-                type(classImproveSnsInfo.clazz)
             }
         }
 
@@ -292,13 +293,6 @@ object DisplayDetails : ClickableHookItem(), IResolveDex {
             matcher {
                 declaredClass(fieldOwner)
                 name = "field_type"
-            }
-        }
-
-        methodGetTimeString.find(dexKit, allowFailure = true) {
-            matcher {
-                declaredClass(classImproveSnsInfo.clazz)
-                usingEqStrings("getTimeString")
             }
         }
     }

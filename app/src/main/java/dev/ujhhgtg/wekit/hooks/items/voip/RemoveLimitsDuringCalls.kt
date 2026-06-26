@@ -28,93 +28,67 @@ object RemoveLimitsDuringCalls : SwitchHookItem(), IResolveDex {
         }
     }
 
-    private val methodIsDuringCall by dexMethod()
-    private val methodIsMultiTalking by dexMethod()
+    private val methodIsDuringCall by dexMethod {
+        matcher {
+            declaredClass {
+                modifiers(Modifier.ABSTRACT)
+            }
+
+            modifiers(Modifier.STATIC)
+            paramCount = 0
+            returnType = "boolean"
+
+            addInvoke {
+                declaredClass = "com.tencent.mm.autogen.events.MultiTalkActionEvent"
+            }
+        }
+    }
+    private val methodIsMultiTalking by dexMethod {
+        matcher {
+            declaredClass(methodIsDuringCall.method.declaringClass)
+            usingEqStrings("MicroMsg.DeviceOccupy", "isMultiTalking")
+            paramCount = 1
+        }
+    }
 //    private val methodIsMultiTalking2 by dexMethod()
-    private val methodIsCameraUsing by dexMethod()
-    private val methodIsCameraUsing2 by dexMethod()
-    private val methodIsVoiceUsing by dexMethod()
-    private val methodIsVoiceUsing2 by dexMethod()
-    private val methodCheckAppBrandVoiceUsing by dexMethod()
-    private val methodCheckAppBrandVoiceUsing2 by dexMethod()
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodIsDuringCall.find(dexKit) {
-            matcher {
-                declaredClass {
-                    modifiers(Modifier.ABSTRACT)
-                }
-
-                modifiers(Modifier.STATIC)
-                paramCount = 0
-                returnType = "boolean"
-
-                addInvoke {
-                    declaredClass = "com.tencent.mm.autogen.events.MultiTalkActionEvent"
-                }
-            }
+    private val methodIsCameraUsing by dexMethod {
+        matcher {
+            declaredClass(methodIsDuringCall.method.declaringClass)
+            usingEqStrings("MicroMsg.DeviceOccupy", "isCameraUsing", "")
         }
-
-        methodIsMultiTalking.find(dexKit) {
-            matcher {
-                declaredClass(methodIsDuringCall.method.declaringClass)
-                usingEqStrings("MicroMsg.DeviceOccupy", "isMultiTalking")
-                paramCount = 1
-            }
+    }
+    private val methodIsCameraUsing2 by dexMethod {
+        matcher {
+            declaredClass(methodIsDuringCall.method.declaringClass)
+            usingEqStrings("MicroMsg.DeviceOccupy", "isCameraUsing", "isLiving %b isAnchor %b isAudioMicing %s isVideoMicing %s")
         }
-
-//        methodIsMultiTalking2.find(dexKit) {
-//            matcher {
-//                declaredClass(methodIsDuringCall.method.declaringClass)
-//                usingEqStrings("MicroMsg.DeviceOccupy", "isMultiTalking")
-//                paramCount = 2
-//            }
-//        }
-
-        methodIsCameraUsing.find(dexKit) {
-            matcher {
-                declaredClass(methodIsDuringCall.method.declaringClass)
-                usingEqStrings("MicroMsg.DeviceOccupy", "isCameraUsing", "")
-            }
+    }
+    private val methodIsVoiceUsing by dexMethod {
+        matcher {
+            declaredClass(methodIsDuringCall.method.declaringClass)
+            usingEqStrings("MicroMsg.DeviceOccupy", "isVoiceUsing")
+            paramCount = 1
         }
-
-        methodIsCameraUsing2.find(dexKit) {
-            matcher {
-                declaredClass(methodIsDuringCall.method.declaringClass)
-                usingEqStrings("MicroMsg.DeviceOccupy", "isCameraUsing", "isLiving %b isAnchor %b isAudioMicing %s isVideoMicing %s")
-            }
+    }
+    private val methodIsVoiceUsing2 by dexMethod {
+        matcher {
+            declaredClass(methodIsDuringCall.method.declaringClass)
+            usingEqStrings("MicroMsg.DeviceOccupy", "isVoiceUsing")
+            paramCount = 2
         }
-
-        methodIsVoiceUsing.find(dexKit) {
-            matcher {
-                declaredClass(methodIsDuringCall.method.declaringClass)
-                usingEqStrings("MicroMsg.DeviceOccupy", "isVoiceUsing")
-                paramCount = 1
-            }
+    }
+    private val methodCheckAppBrandVoiceUsing by dexMethod {
+        matcher {
+            declaredClass(methodIsDuringCall.method.declaringClass)
+            usingEqStrings("MicroMsg.DeviceOccupy", "checkAppBrandVoiceUsingAndShowToast isVoiceUsing:%b, isCameraUsing:%b")
+            paramCount = 1
         }
-
-        methodIsVoiceUsing2.find(dexKit) {
-            matcher {
-                declaredClass(methodIsDuringCall.method.declaringClass)
-                usingEqStrings("MicroMsg.DeviceOccupy", "isVoiceUsing")
-                paramCount = 2
-            }
-        }
-
-        methodCheckAppBrandVoiceUsing.find(dexKit) {
-            matcher {
-                declaredClass(methodIsDuringCall.method.declaringClass)
-                usingEqStrings("MicroMsg.DeviceOccupy", "checkAppBrandVoiceUsingAndShowToast isVoiceUsing:%b, isCameraUsing:%b")
-                paramCount = 1
-            }
-        }
-
-        methodCheckAppBrandVoiceUsing2.find(dexKit) {
-            matcher {
-                declaredClass(methodIsDuringCall.method.declaringClass)
-                usingEqStrings("MicroMsg.DeviceOccupy", "checkAppBrandVoiceUsingAndShowToast isVoiceUsing:%b, isCameraUsing:%b")
-                paramCount = 2
-            }
+    }
+    private val methodCheckAppBrandVoiceUsing2 by dexMethod {
+        matcher {
+            declaredClass(methodIsDuringCall.method.declaringClass)
+            usingEqStrings("MicroMsg.DeviceOccupy", "checkAppBrandVoiceUsingAndShowToast isVoiceUsing:%b, isCameraUsing:%b")
+            paramCount = 2
         }
     }
 }

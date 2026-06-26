@@ -59,40 +59,34 @@ object RemoveSignatureLimits : SwitchHookItem(), IResolveDex {
         }
     }
 
-    private val methodTextWatcherAfterTextChanged by dexMethod()
-
-    private val methodConfirmButtonOnClickListenerOnClick by dexMethod()
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodTextWatcherAfterTextChanged.find(dexKit) {
-            searchPackages("${PackageNames.WECHAT}.plugin.setting.ui.setting")
-            matcher {
-                declaredClass {
-                    addMethod {
-                        name = "<init>"
-                        paramTypes("${PackageNames.WECHAT}.plugin.setting.ui.setting.EditSignatureUI", "java.lang.String")
-                    }
-                    addInterface { className = "android.text.TextWatcher" }
+    private val methodTextWatcherAfterTextChanged by dexMethod {
+        searchPackages("${PackageNames.WECHAT}.plugin.setting.ui.setting")
+        matcher {
+            declaredClass {
+                addMethod {
+                    name = "<init>"
+                    paramTypes("${PackageNames.WECHAT}.plugin.setting.ui.setting.EditSignatureUI", "java.lang.String")
                 }
-
-                name = "afterTextChanged"
+                addInterface { className = "android.text.TextWatcher" }
             }
+
+            name = "afterTextChanged"
         }
+    }
 
-        methodConfirmButtonOnClickListenerOnClick.find(dexKit) {
-            searchPackages("${PackageNames.WECHAT}.plugin.setting.ui.setting")
-            matcher {
-                declaredClass {
-                    addMethod {
-                        name = "<init>"
-                        paramTypes("${PackageNames.WECHAT}.plugin.setting.ui.setting.EditSignatureUI")
-                    }
-                    addInterface { className = $$"android.view.MenuItem$OnMenuItemClickListener" }
+    private val methodConfirmButtonOnClickListenerOnClick by dexMethod {
+        searchPackages("${PackageNames.WECHAT}.plugin.setting.ui.setting")
+        matcher {
+            declaredClass {
+                addMethod {
+                    name = "<init>"
+                    paramTypes("${PackageNames.WECHAT}.plugin.setting.ui.setting.EditSignatureUI")
                 }
-
-                name = "onMenuItemClick"
-                usingEqStrings(".*[", "].*")
+                addInterface { className = $$"android.view.MenuItem$OnMenuItemClickListener" }
             }
+
+            name = "onMenuItemClick"
+            usingEqStrings(".*[", "].*")
         }
     }
 }

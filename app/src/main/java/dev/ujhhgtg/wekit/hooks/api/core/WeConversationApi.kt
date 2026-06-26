@@ -1,41 +1,110 @@
 package dev.ujhhgtg.wekit.hooks.api.core
 
-import android.content.ContentValues
-import dev.ujhhgtg.reflekt.utils.createInstance
 import dev.ujhhgtg.comptime.nameOf
+import dev.ujhhgtg.reflekt.reflekt
+import dev.ujhhgtg.reflekt.utils.createInstance
 import dev.ujhhgtg.wekit.dexkit.abc.IResolveDex
 import dev.ujhhgtg.wekit.dexkit.dsl.dexClass
 import dev.ujhhgtg.wekit.dexkit.dsl.dexMethod
 import dev.ujhhgtg.wekit.hooks.core.ApiHookItem
 import dev.ujhhgtg.wekit.hooks.core.HookItem
 import dev.ujhhgtg.wekit.utils.WeLogger
-import dev.ujhhgtg.reflekt.reflekt
-import org.luckypray.dexkit.DexKitBridge
 import java.lang.reflect.Method
-import java.lang.reflect.Modifier
-import java.util.LinkedHashSet
 
 @HookItem(name = "对话服务", categories = ["API"], description = "提供对话管理能力")
 object WeConversationApi : ApiHookItem(), IResolveDex {
 
     private val TAG = nameOf(WeConversationApi)
-    // Clears 4096, 1048576, 16777216 and 33554432, which drive 8071/8072 red prefixes.
+    // Clears 4096, 1048576, 16777216 and 33554432, which drive 8071/8072 red prefixes
     private const val ATTR_FLAG_COMMON_RED_BITS = 51384320
     private const val ATTR_FLAG_8071_8072_RED_PACKET_BITS = 33280
     private const val TABLE_RCONVERSATION = "rconversation"
     private const val TABLE_ECS_CONVERSATION_RECORD = "EcsConversationRecord"
-    private val classConversationStorage by dexClass()
-    private val methodUpdateUnreadByTalker by dexMethod()
-    private val methodClearConvRedHintsOnMarkRead by dexMethod()
-    private val methodClearEcsGiftRedLabel by dexMethod()
-    private val methodHiddenConvParent by dexMethod()
-    private val methodGetConvByName by dexMethod()
-    private val methodUpdateConversationByObject by dexMethod()
-    private val methodChatroomStorageGetMemberCount by dexMethod()
-    private val classChatroomMember by dexClass()
-    private val methodSetDnd by dexMethod()
-    private val methodSetNoDnd by dexMethod()
-    private val methodNotifyConversationChanged by dexMethod()
+    private val classConversationStorage by dexClass {
+        searchPackages("com.tencent.mm.storage")
+        matcher {
+            usingEqStrings("rconversation", "PRAGMA table_info( rconversation)")
+        }
+    }
+    private val methodUpdateUnreadByTalker by dexMethod {
+        matcher {
+            declaredClass(classConversationStorage.clazz)
+            usingEqStrings("MicroMsg.ConversationStorage", "updateUnreadByTalker %s")
+        }
+    }
+//    private val methodClearConvRedHintsOnMarkRead by dexMethod(allowFailure = true) {
+//        matcher {
+//            modifiers = Modifier.PUBLIC or Modifier.STATIC or Modifier.FINAL
+//            returnType(Void.TYPE)
+//            paramCount = 1
+//            paramTypes(String::class.java)
+//            usingStrings(
+//                "MicroMsg.ConvRedHintStorage",
+//                "markReadRemoveRedHint remove red hints"
+//            )
+//        }
+//    }
+    private val methodClearEcsGiftRedLabel by dexMethod(allowFailure = true) {
+        matcher {
+            returnType(Void.TYPE)
+            paramCount = 1
+            paramTypes(String::class.java)
+            usingEqStrings(
+                "MicroMsg.EcsGiftMsgService",
+                "clearEcsGiftRedLabel, talker is empty",
+                "clearEcsGiftRedLabel error"
+            )
+        }
+    }
+    private val methodHiddenConvParent by dexMethod {
+        matcher {
+            declaredClass(classConversationStorage.clazz)
+            usingEqStrings("Update rconversation set parentRef = '", "' where 1 != 1 ")
+        }
+    }
+//    private val methodGetConvByName by dexMethod {
+//        matcher {
+//            declaredClass(classConversationStorage.clazz)
+//            usingEqStrings("MicroMsg.ConversationStorage", "get null with username:")
+//        }
+//    }
+//    private val methodUpdateConversationByObject by dexMethod {
+//        matcher {
+//            declaredClass(classConversationStorage.clazz)
+//            returnType(Int::class.java)
+//            paramTypes(methodGetConvByName.method.returnType, String::class.java)
+//        }
+//    }
+    private val methodChatroomStorageGetMemberCount by dexMethod {
+        searchPackages("com.tencent.mm.storage")
+        matcher {
+            usingEqStrings("MicroMsg.ChatroomStorage", "[getMemberCount] cost:%sms")
+        }
+    }
+    private val classChatroomMember by dexClass {
+        searchPackages("com.tencent.mm.storage")
+        matcher {
+            usingEqStrings("MicroMsg.ChatRoomMember", "service is null")
+        }
+    }
+    private val methodSetDnd by dexMethod {
+        matcher {
+            usingEqStrings("MicroMsg.OpenImOpLogLogic", "OpenImOpLogLogic OpenIMModContactMuteOplog username:%s switch add")
+        }
+    }
+    private val methodSetNoDnd by dexMethod {
+        matcher {
+            usingEqStrings("MicroMsg.OpenImOpLogLogic", "OpenImOpLogLogic OpenIMModContactMuteOplog username:%s switch cancel")
+        }
+    }
+    private val methodNotifyConversationChanged by dexMethod(allowFailure = true) {
+        matcher {
+            declaredClass(classConversationStorage.clazz.superclass!!)
+            paramCount = 3
+            paramTypes("int", classConversationStorage.clazz.superclass!!.name, "java.lang.Object")
+            returnType(Void.TYPE)
+        }
+    }
     private var ecsGiftMsgService: Any? = null
 
     val conversationStorage by lazy {
@@ -67,12 +136,8 @@ object WeConversationApi : ApiHookItem(), IResolveDex {
 
     fun markAllAsRead() {
         val talkers = LinkedHashSet<String>()
-        val cursor = WeDatabaseApi.rawQuery(
-            """
-                SELECT username, parentRef FROM rconversation
-            """.trimIndent()
-        )
-        try {
+        val cursor = WeDatabaseApi.rawQuery("SELECT username, parentRef FROM rconversation")
+        cursor.use { cursor ->
             while (cursor.moveToNext()) {
                 val talker = cursor.getString(0)
                 if (!talker.isNullOrEmpty()) {
@@ -83,8 +148,6 @@ object WeConversationApi : ApiHookItem(), IResolveDex {
                     talkers += parentRef
                 }
             }
-        } finally {
-            cursor.close()
         }
 
         for (talker in talkers) {
@@ -94,8 +157,9 @@ object WeConversationApi : ApiHookItem(), IResolveDex {
                 WeLogger.w(TAG, "exception while updating unread count for $talker", ex)
             }
         }
+
         clearAllConversationRedPacketMarkFields()
-        notifyConversationListReload()
+        reloadConversations()
     }
 
     fun markAsRead(talker: String) {
@@ -158,18 +222,16 @@ object WeConversationApi : ApiHookItem(), IResolveDex {
     private fun resolvedClearEcsGiftRedLabelMethod(): Method? {
         if (methodClearEcsGiftRedLabel.isPlaceholder) return null
         val method = methodClearEcsGiftRedLabel.method
-        if (method.isStringVoidMethod()) return method
+        if (method.run {
+                returnType == Void.TYPE &&
+                        parameterCount == 1 &&
+                        parameterTypes[0] == String::class.java
+            }) return method
         WeLogger.w(
             TAG,
             "ignore invalid official ecs gift red-label clear method: ${method.declaringClass.name}.${method.name}, params=${method.parameterCount}"
         )
         return null
-    }
-
-    private fun Method.isStringVoidMethod(): Boolean {
-        return returnType == Void.TYPE &&
-            parameterCount == 1 &&
-            parameterTypes[0] == String::class.java
     }
 
     private fun getEcsGiftMsgService(method: Method): Any? {
@@ -186,16 +248,12 @@ object WeConversationApi : ApiHookItem(), IResolveDex {
         return null
     }
 
-    private fun notifyConversationListReload() {
+    fun reloadConversations() {
         try {
             notifyConversationChanged("", 5)
         } catch (ex: Exception) {
             WeLogger.w(TAG, "exception while notifying conversation list reload", ex)
         }
-    }
-
-    fun reloadConversationList() {
-        notifyConversationListReload()
     }
 
     private fun notifyConversationChanged(talker: String, eventType: Int = 3) {
@@ -260,105 +318,6 @@ object WeConversationApi : ApiHookItem(), IResolveDex {
             methodSetDnd.method.invoke(null, contact, true)
         } else {
             methodSetNoDnd.method.invoke(null, contact, true)
-        }
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        classConversationStorage.find(dexKit) {
-            searchPackages("com.tencent.mm.storage")
-            matcher {
-                usingEqStrings("rconversation", "PRAGMA table_info( rconversation)")
-            }
-        }
-
-        methodUpdateUnreadByTalker.find(dexKit) {
-            matcher {
-                declaredClass(classConversationStorage.clazz)
-                usingEqStrings("MicroMsg.ConversationStorage", "updateUnreadByTalker %s")
-            }
-        }
-
-        methodClearConvRedHintsOnMarkRead.find(dexKit, allowFailure = true) {
-            matcher {
-                modifiers = Modifier.PUBLIC or Modifier.STATIC or Modifier.FINAL
-                returnType(Void.TYPE)
-                paramCount = 1
-                paramTypes(String::class.java)
-                usingStrings(
-                    "MicroMsg.ConvRedHintStorage",
-                    "markReadRemoveRedHint remove red hints"
-                )
-            }
-        }
-
-        methodClearEcsGiftRedLabel.find(dexKit, allowFailure = true) {
-            matcher {
-                returnType(Void.TYPE)
-                paramCount = 1
-                paramTypes(String::class.java)
-                usingEqStrings(
-                    "MicroMsg.EcsGiftMsgService",
-                    "clearEcsGiftRedLabel, talker is empty",
-                    "clearEcsGiftRedLabel error"
-                )
-            }
-        }
-
-        methodHiddenConvParent.find(dexKit) {
-            matcher {
-                declaredClass(classConversationStorage.clazz)
-                usingEqStrings("Update rconversation set parentRef = '", "' where 1 != 1 ")
-            }
-        }
-
-        methodGetConvByName.find(dexKit) {
-            matcher {
-                declaredClass(classConversationStorage.clazz)
-                usingEqStrings("MicroMsg.ConversationStorage", "get null with username:")
-            }
-        }
-
-        methodUpdateConversationByObject.find(dexKit) {
-            matcher {
-                declaredClass(classConversationStorage.clazz)
-                returnType(Int::class.java)
-                paramTypes(methodGetConvByName.method.returnType, String::class.java)
-            }
-        }
-
-        methodNotifyConversationChanged.find(dexKit, allowFailure = true) {
-            matcher {
-                declaredClass(classConversationStorage.clazz.superclass)
-                paramCount = 3
-                paramTypes("int", classConversationStorage.clazz.superclass.name, "java.lang.Object")
-                returnType(Void.TYPE)
-            }
-        }
-
-        methodChatroomStorageGetMemberCount.find(dexKit) {
-            searchPackages("com.tencent.mm.storage")
-            matcher {
-                usingEqStrings("MicroMsg.ChatroomStorage", "[getMemberCount] cost:%sms")
-            }
-        }
-
-        classChatroomMember.find(dexKit) {
-            searchPackages("com.tencent.mm.storage")
-            matcher {
-                usingEqStrings("MicroMsg.ChatRoomMember", "service is null")
-            }
-        }
-
-        methodSetDnd.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.OpenImOpLogLogic", "OpenImOpLogLogic OpenIMModContactMuteOplog username:%s switch add")
-            }
-        }
-
-        methodSetNoDnd.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.OpenImOpLogLogic", "OpenImOpLogLogic OpenIMModContactMuteOplog username:%s switch cancel")
-            }
         }
     }
 }

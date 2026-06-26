@@ -6,24 +6,34 @@ import android.content.Context
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
 import com.tencent.mm.plugin.sns.ui.SnsUserUI
 import com.tencent.mm.plugin.sns.ui.improve.ImproveSnsTimelineUI
 import com.tencent.mm.view.recyclerview.WxRecyclerView
+import dev.ujhhgtg.comptime.This
+import dev.ujhhgtg.reflekt.reflekt
+import dev.ujhhgtg.reflekt.utils.isSubclassOf
 import dev.ujhhgtg.wekit.dexkit.abc.IResolveDex
 import dev.ujhhgtg.wekit.dexkit.dsl.dexClass
 import dev.ujhhgtg.wekit.dexkit.dsl.dexField
@@ -44,29 +54,23 @@ import dev.ujhhgtg.wekit.ui.utils.rootView
 import dev.ujhhgtg.wekit.ui.utils.showComposeDialog
 import dev.ujhhgtg.wekit.utils.WeLogger
 import dev.ujhhgtg.wekit.utils.android.showToast
-import dev.ujhhgtg.reflekt.reflekt
-import org.luckypray.dexkit.DexKitBridge
 import java.util.Collections
 import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.concurrent.thread
 
 @HookItem(
-    name = "自动点赞指定好友",
+    name = "自动点赞",
     categories = ["朋友圈"],
-    description = "仅对指定好友发送真实朋友圈点赞请求"
+    description = "浏览朋友圈时自动点赞"
 )
 object AutoLikeMoments : ClickableHookItem(),
     IResolveDex,
     WeDatabaseListenerApi.IInsertListener,
     WeDatabaseListenerApi.IUpdateListener {
 
-    private val TAG = "AutoLikeMoments"
+    private val TAG = This.Class.simpleName
 
-    private const val KEY_TARGETS = "moments_auto_like_targets"
-    private const val KEY_MODE = "moments_auto_like_mode"
-    private const val KEY_ACTION = "moments_auto_like_action"
-    private const val KEY_ACTION_DELAY_MS = "moments_auto_like_action_delay_ms"
     private const val MODE_WHEN_SEEN = 0
     private const val MODE_ALL_LOADED = 1
     private const val ACTION_LIKE = 0
@@ -87,8 +91,10 @@ object AutoLikeMoments : ClickableHookItem(),
 
     override fun onEnable() {
         WeDatabaseListenerApi.addListener(this)
+
         installTimelineHooks()
-        if (currentMode() == MODE_ALL_LOADED) {
+
+        if (currentMode == MODE_ALL_LOADED) {
             scanCachedTargetMoments()
         }
     }
@@ -99,79 +105,101 @@ object AutoLikeMoments : ClickableHookItem(),
 
     override fun onClick(context: Context) {
         showComposeDialog(context) {
-            var selectedTargets by remember { mutableStateOf(targetWxIds()) }
-            var mode by remember { mutableStateOf(WePrefs.getIntOrDef(KEY_MODE, MODE_WHEN_SEEN)) }
-            var action by remember { mutableStateOf(WePrefs.getIntOrDef(KEY_ACTION, ACTION_LIKE)) }
-            var delayInput by remember { mutableStateOf(actionDelayMs().toString()) }
+            var mode by remember { mutableIntStateOf(currentMode) }
+            var action by remember { mutableIntStateOf(currentAction) }
+            var delayInput by remember { mutableStateOf(actionDelayMs.toString()) }
+            var useWhitelist by remember { mutableStateOf(momentsUseWhitelist) }
 
             AlertDialogContent(
-                title = { Text("自动点赞朋友圈") },
+                title = { Text("自动点赞") },
                 text = {
                     DefaultColumn(Modifier.verticalScroll(rememberScrollState())) {
                         ListItem(
-                            headlineContent = { Text("指定好友") },
-                            supportingContent = { Text("已选择 ${selectedTargets.size} 个好友") },
+                            headlineContent = { Text(if (useWhitelist) "黑名单 [> 白名单 <]" else "[> 黑名单 <] 白名单") },
+                            supportingContent = { Text(if (useWhitelist) "仅对选中联系人点赞" else "对选中联系人跳过点赞") },
+                            trailingContent = { Switch(checked = useWhitelist, onCheckedChange = { useWhitelist = !useWhitelist }) },
+                            modifier = Modifier.clickable { useWhitelist = !useWhitelist }
+                        )
+
+                        ListItem(
+                            headlineContent = { Text(if (useWhitelist) "配置白名单" else "配置黑名单") },
+                            supportingContent = { Text("点击选择联系人") },
                             modifier = Modifier.clickable {
-                                val friends = WeDatabaseApi.getFriends()
+                                val regularContacts = WeDatabaseApi.getFriends() + WeDatabaseApi.getGroups()
+                                val currentList = if (useWhitelist) momentsWhitelist else momentsBlacklist
+
                                 showComposeDialog(context) {
                                     ContactsSelector(
-                                        title = "选择指定好友",
-                                        contacts = friends,
-                                        initialSelectedWxIds = selectedTargets,
-                                        onDismiss = onDismiss,
-                                        onConfirm = { wxIds ->
-                                            selectedTargets = normalizeWxIds(wxIds)
-                                            onDismiss()
+                                        title = if (useWhitelist) "选择白名单" else "选择黑名单",
+                                        contacts = regularContacts,
+                                        initialSelectedWxIds = currentList,
+                                        onDismiss = onDismiss
+                                    ) { selectedIds ->
+                                        if (useWhitelist) {
+                                            momentsWhitelist = selectedIds
+                                        } else {
+                                            momentsBlacklist = selectedIds
                                         }
-                                    )
+                                        showToast("已保存 ${selectedIds.size} 个联系人, 重启微信以使更改生效")
+                                        onDismiss()
+                                    }
                                 }
                             }
                         )
-                        ModeRow(
-                            title = "点赞模式",
-                            summary = "只给指定好友的朋友圈点赞。",
-                            checked = action == ACTION_LIKE,
-                            onClick = { action = ACTION_LIKE }
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                        Text(
+                            text = "操作类型",
+                            style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
+                            color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                         )
-                        if (action == ACTION_LIKE) {
+                        Column(Modifier.selectableGroup()) {
                             ModeRow(
-                                title = "刷到时点赞",
-                                summary = "刷朋友圈时，只有刷到指定好友的内容才会点赞。",
+                                title = "自动点赞模式",
+                                summary = "浏览或同步朋友圈时, 自动给指定目标点赞",
+                                checked = action == ACTION_LIKE,
+                                onClick = { action = ACTION_LIKE }
+                            )
+                            ModeRow(
+                                title = "取消点赞模式",
+                                summary = "浏览或同步朋友圈时, 自动取消你已点过的赞",
+                                checked = action == ACTION_UNLIKE,
+                                onClick = { action = ACTION_UNLIKE }
+                            )
+                        }
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                        Text(
+                            text = "运行机制",
+                            style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
+                            color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        )
+                        Column(Modifier.selectableGroup()) {
+                            ModeRow(
+                                title = "刷到时即时处理",
+                                summary = "仅在滚动浏览朋友圈、视图可见时触发对应操作",
                                 checked = mode == MODE_WHEN_SEEN,
                                 onClick = { mode = MODE_WHEN_SEEN }
                             )
                             ModeRow(
-                                title = "缓存过内容点赞",
-                                summary = "处理本地已缓存和后续拉取到的指定好友朋友圈。",
+                                title = "本地缓存全量处理",
+                                summary = "自动扫描本地已缓存和后续收到的所有目标朋友圈",
                                 checked = mode == MODE_ALL_LOADED,
                                 onClick = { mode = MODE_ALL_LOADED }
                             )
                         }
-                        ModeRow(
-                            title = "取消点赞模式",
-                            summary = "只取消指定好友朋友圈里你已点过的赞。",
-                            checked = action == ACTION_UNLIKE,
-                            onClick = { action = ACTION_UNLIKE }
-                        )
-                        if (action == ACTION_UNLIKE) {
-                            ModeRow(
-                                title = "刷到时取消点赞",
-                                summary = "刷朋友圈时，只有刷到指定好友的内容才会取消点赞。",
-                                checked = mode == MODE_WHEN_SEEN,
-                                onClick = { mode = MODE_WHEN_SEEN }
-                            )
-                            ModeRow(
-                                title = "缓存过内容取消点赞",
-                                summary = "处理本地已缓存和后续拉取到的指定好友朋友圈。",
-                                checked = mode == MODE_ALL_LOADED,
-                                onClick = { mode = MODE_ALL_LOADED }
-                            )
-                        }
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
                         TextField(
                             value = delayInput,
                             onValueChange = { delayInput = it.filter { c -> c.isDigit() }.take(6) },
-                            label = { Text("操作间隔 (ms)") },
-                            supportingText = { Text("默认 0，仅在实际发送点赞/取消点赞请求之间等待") },
+                            label = { Text("操作间隔 (毫秒)") },
+                            supportingText = { Text("在实际发送点赞/取消点赞请求之间等待") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
@@ -184,18 +212,15 @@ object AutoLikeMoments : ClickableHookItem(),
                 confirmButton = {
                     Button(
                         onClick = {
-                            WePrefs.putStringSet(KEY_TARGETS, selectedTargets)
-                            WePrefs.putInt(KEY_MODE, mode)
-                            WePrefs.putInt(KEY_ACTION, action)
-                            WePrefs.putLong(
-                                KEY_ACTION_DELAY_MS,
-                                (delayInput.toLongOrNull() ?: 0L).coerceIn(0L, MAX_ACTION_DELAY_MS)
-                            )
+                            momentsUseWhitelist = useWhitelist
+                            currentMode = mode
+                            currentAction = action
+                            actionDelayMs = (delayInput.toLongOrNull() ?: 0L).coerceIn(0L, MAX_ACTION_DELAY_MS)
                             handledSnsIds.clear()
                             lastAttemptAt.clear()
-                            showToast("已保存 ${selectedTargets.size} 个指定好友")
-                            if (_isEnabled && mode == MODE_ALL_LOADED) {
-                                scanCachedTargetMoments(selectedTargets)
+                            showToast("配置已保存")
+                            if (mode == MODE_ALL_LOADED) {
+                                scanCachedTargetMoments()
                             }
                             onDismiss()
                         }
@@ -215,27 +240,6 @@ object AutoLikeMoments : ClickableHookItem(),
         processSnsInfoValues(table, values)
     }
 
-    override fun resolveDex(dexKit: DexKitBridge) {
-        classImproveSnsInfo.find(dexKit) {
-            matcher {
-                usingEqStrings("ImproveInfo(name=")
-            }
-        }
-
-        classImproveInteractionLayout.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.Improve.InteractionLayout")
-            }
-        }
-
-        fieldInteractionSnsInfo.find(dexKit) {
-            matcher {
-                declaredClass(classImproveInteractionLayout.clazz)
-                type(classImproveSnsInfo.clazz)
-            }
-        }
-    }
-
     private fun installTimelineHooks() {
         if (timelineHooksInstalled) return
         timelineHooksInstalled = true
@@ -248,7 +252,6 @@ object AutoLikeMoments : ClickableHookItem(),
                     name = "onCreate"
                 }
                 .hookAfter {
-                    if (!_isEnabled) return@hookAfter
                     scheduleAttach(thisObject as Activity)
                 }
             clazz.reflekt()
@@ -256,7 +259,6 @@ object AutoLikeMoments : ClickableHookItem(),
                     name = "onResume"
                 }
                 .hookAfter {
-                    if (!_isEnabled) return@hookAfter
                     scheduleAttach(thisObject as Activity)
                 }
         }
@@ -266,7 +268,6 @@ object AutoLikeMoments : ClickableHookItem(),
         val root = activity.rootView
         intArrayOf(0, 200, 800, 2_000).forEach { delay ->
             root.postDelayed({
-                if (!_isEnabled) return@postDelayed
                 runCatching { attachToTimelineList(root) }
                     .onFailure { WeLogger.w(TAG, "failed to attach Moments auto-like list observer", it) }
             }, delay.toLong())
@@ -279,18 +280,17 @@ object AutoLikeMoments : ClickableHookItem(),
             if (!attachedRoots.add(root)) return
         }
         list.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            if (!_isEnabled) return@addOnLayoutChangeListener
             processVisibleItems(list)
         }
         list.viewTreeObserver.addOnGlobalLayoutListener {
-            if (!_isEnabled) return@addOnGlobalLayoutListener
             processVisibleItems(list)
         }
         processVisibleItems(list)
     }
 
     private fun processVisibleItems(list: ViewGroup) {
-        if (targetWxIds().isEmpty()) return
+        val targets = if (momentsUseWhitelist) momentsWhitelist else momentsBlacklist
+        if (targets.isEmpty()) return
         for (i in 0 until list.childCount) {
             runCatching {
                 locateSnsInfo(list.getChildAt(i))?.let { processSnsInfoAsync(it, "visible") }
@@ -302,7 +302,7 @@ object AutoLikeMoments : ClickableHookItem(),
 
     private fun processSnsInfoValues(table: String, values: ContentValues) {
         if (table != "SnsInfo") return
-        if (currentMode() != MODE_ALL_LOADED) return
+        if (currentMode != MODE_ALL_LOADED) return
 
         val owner = values.getAsString("userName")?.trim().orEmpty()
         if (!isTarget(owner)) return
@@ -311,7 +311,7 @@ object AutoLikeMoments : ClickableHookItem(),
         val sourceType = values.getAsInteger("sourceType") ?: 0
         if (sourceType != 0) return
 
-        val action = currentAction()
+        val action = currentAction
         val likeFlag = values.getAsInteger("likeFlag") ?: 0
         if (action == ACTION_LIKE && likeFlag != 0) return
         if (action == ACTION_UNLIKE && likeFlag == 0) return
@@ -321,12 +321,13 @@ object AutoLikeMoments : ClickableHookItem(),
         processSnsInfoAsync(snsInfo, "database")
     }
 
-    private fun scanCachedTargetMoments(targets: Set<String> = targetWxIds()) {
+    private fun scanCachedTargetMoments() {
+        val targets = if (momentsUseWhitelist) momentsWhitelist else momentsBlacklist
         if (targets.isEmpty()) return
-        thread(name = "MomentsAutoLikeScan") {
+        thread(name = "ScanMomentsToAutoLikeThread") {
             WeLogger.d(TAG, "scanCachedTargetMoments: scanning ${targets.size} targets")
             val snsIds = runCatching {
-                queryCachedTargetSnsIds(targets)
+                queryCachedTargetSnsIds()
             }.onFailure {
                 if (it !is UninitializedPropertyAccessException) {
                     WeLogger.w(TAG, "failed to query cached target Moments", it)
@@ -335,7 +336,6 @@ object AutoLikeMoments : ClickableHookItem(),
 
             WeLogger.d(TAG, "scanCachedTargetMoments: found ${snsIds.size} cached moments")
             for (snsId in snsIds) {
-                if (!_isEnabled) return@thread
                 val snsInfo = WeMomentsApi.getSnsInfoBySnsId(snsId) ?: run {
                     WeLogger.w(TAG, "scanCachedTargetMoments: failed to get snsInfo for snsId=$snsId")
                     continue
@@ -346,10 +346,13 @@ object AutoLikeMoments : ClickableHookItem(),
         }
     }
 
-    private fun queryCachedTargetSnsIds(targets: Set<String>): List<Long> {
+    private fun queryCachedTargetSnsIds(): List<Long> {
+        val targets = if (momentsUseWhitelist) momentsWhitelist else momentsBlacklist
+        if (targets.isEmpty()) return emptyList()
+
         val placeholders = targets.joinToString(",") { "?" }
         val args = targets.map { it as Any }.toTypedArray()
-        val likePredicate = if (currentAction() == ACTION_UNLIKE) {
+        val likePredicate = if (currentAction == ACTION_UNLIKE) {
             "IFNULL(likeFlag, 0) != 0"
         } else {
             "IFNULL(likeFlag, 0) = 0"
@@ -404,7 +407,7 @@ object AutoLikeMoments : ClickableHookItem(),
         WeLogger.d(TAG, "processSnsInfo: processing snsTableId=$snsTableId, owner=$owner, source=$source")
 
         if (snsTableId in handledSnsIds) return
-        val action = currentAction()
+        val action = currentAction
         val liked = WeMomentsApi.isLiked(snsInfo)
         if (action == ACTION_LIKE && liked) {
             handledSnsIds.add(snsTableId)
@@ -419,23 +422,22 @@ object AutoLikeMoments : ClickableHookItem(),
         val result = sendWithDelay {
             val latestOwner = WeMomentsApi.getOwnerWxId(snsInfo)?.trim().orEmpty()
             if (!isTarget(latestOwner) || latestOwner == WeApi.selfWxId) {
-                WeMomentsApi.ActionResult(true, false, "target skipped")
+                WeMomentsApi.ActionResult(success = true, sent = false, message = "target skipped")
             } else if (WeMomentsApi.isDeleted(snsInfo)) {
-                WeMomentsApi.ActionResult(true, false, "deleted/recalled")
+                WeMomentsApi.ActionResult(success = true, sent = false, message = "deleted/recalled")
             } else {
                 val latestLiked = WeMomentsApi.isLiked(snsInfo)
-                when {
-                    action == ACTION_LIKE && latestLiked ->
-                        WeMomentsApi.ActionResult(true, false, "already liked")
+                when (action) {
+                    ACTION_LIKE if latestLiked ->
+                        WeMomentsApi.ActionResult(success = true, sent = false, message = "already liked")
 
-                    action == ACTION_UNLIKE && !latestLiked ->
-                        WeMomentsApi.ActionResult(true, false, "already unliked")
+                    ACTION_UNLIKE if !latestLiked ->
+                        WeMomentsApi.ActionResult(success = true, sent = false, message = "already unliked")
 
-                    action == ACTION_UNLIKE ->
+                    ACTION_UNLIKE ->
                         WeMomentsApi.unlike(snsInfo)
 
-                    else ->
-                        WeMomentsApi.like(snsInfo)
+                    else -> WeMomentsApi.like(snsInfo)
                 }
             }
         }
@@ -461,18 +463,18 @@ object AutoLikeMoments : ClickableHookItem(),
     private fun isIntercepted(snsInfo: Any): Boolean {
         // Check if the moments content contains the interception marker
         val content = WeMomentsApi.getContent(snsInfo) ?: return false
-        return content.contains("[已拦截]")
+        return content.contains(AntiMomentsDelete.INTERCEPT_MARK)
     }
 
     private fun processSnsInfoAsync(snsInfo: Any, source: String) {
-        thread(name = "MomentsAutoLikeAction") {
+        thread(name = "AutoLikeMomentThread") {
             processSnsInfo(snsInfo, source)
         }
     }
 
     private fun sendWithDelay(block: () -> WeMomentsApi.ActionResult): WeMomentsApi.ActionResult =
         synchronized(actionLock) {
-            val delay = actionDelayMs()
+            val delay = actionDelayMs
             if (delay > 0) {
                 val wait = delay - (System.currentTimeMillis() - lastActionSentAt)
                 if (wait > 0) Thread.sleep(wait)
@@ -499,88 +501,65 @@ object AutoLikeMoments : ClickableHookItem(),
     private fun extractImproveSnsInfo(receiver: Any): Any? {
         if (classImproveSnsInfo.clazz.isInstance(receiver)) return receiver
 
-        callNoArgReturning(receiver, classImproveSnsInfo.clazz)?.let { return it }
+        receiver.reflekt()
+            .firstMethodOrNull { parameters(); superclass(); returnType { it isSubclassOf classImproveSnsInfo.clazz } }
+            ?.invoke()?.let { return it }
 
-        callNoArg(receiver, "getImproveListItem")?.let { listItem ->
-            callNoArgReturning(listItem, classImproveSnsInfo.clazz)?.let { return it }
-            readFieldAssignable(listItem, classImproveSnsInfo.clazz)?.let { return it }
+        receiver.reflekt().firstMethodOrNull {
+            name = "getImproveListItem"
+            parameters()
+            superclass()
+        }?.invoke()?.let { listItem ->
+            listItem.reflekt()
+                .firstMethodOrNull { parameters(); superclass(); returnType { it isSubclassOf classImproveSnsInfo.clazz } }
+                ?.invoke()?.let { return it }
+            listItem.reflekt()
+                .firstFieldOrNull { superclass(); type { it isSubclassOf classImproveSnsInfo.clazz } }
+                ?.get()?.let { return it }
         }
 
-        return readFieldAssignable(receiver, classImproveSnsInfo.clazz)
+        return receiver.reflekt()
+            .firstFieldOrNull { superclass(); type { it isSubclassOf classImproveSnsInfo.clazz } }
+            ?.get()
     }
 
-    private fun callNoArg(receiver: Any, name: String): Any? {
-        var clazz: Class<*>? = receiver.javaClass
-        while (clazz != null) {
-            clazz.declaredMethods.firstOrNull {
-                it.name == name && it.parameterCount == 0
-            }?.let { method ->
-                return runCatching {
-                    method.isAccessible = true
-                    method.invoke(receiver)
-                }.getOrNull()
-            }
-            clazz = clazz.superclass
-        }
-        return null
-    }
-
-    private fun callNoArgReturning(receiver: Any, returnType: Class<*>): Any? {
-        var clazz: Class<*>? = receiver.javaClass
-        while (clazz != null) {
-            clazz.declaredMethods.firstOrNull {
-                it.parameterCount == 0 && returnType.isAssignableFrom(it.returnType)
-            }?.let { method ->
-                return runCatching {
-                    method.isAccessible = true
-                    method.invoke(receiver)
-                }.getOrNull()
-            }
-            clazz = clazz.superclass
-        }
-        return null
-    }
-
-    private fun readFieldAssignable(receiver: Any, fieldType: Class<*>): Any? {
-        var clazz: Class<*>? = receiver.javaClass
-        while (clazz != null) {
-            clazz.declaredFields.firstOrNull {
-                fieldType.isAssignableFrom(it.type)
-            }?.let { field ->
-                return runCatching {
-                    field.isAccessible = true
-                    field.get(receiver)
-                }.getOrNull()
-            }
-            clazz = clazz.superclass
-        }
-        return null
-    }
-
-    private fun currentMode(): Int =
-        WePrefs.getIntOrDef(KEY_MODE, MODE_WHEN_SEEN)
-
-    private fun currentAction(): Int =
-        WePrefs.getIntOrDef(KEY_ACTION, ACTION_LIKE)
-
-    private fun actionDelayMs(): Long =
-        WePrefs.getLongOrDef(KEY_ACTION_DELAY_MS, 0L).coerceIn(0L, MAX_ACTION_DELAY_MS)
+    private var currentMode by WePrefs.prefOption("moments_auto_like_mode", MODE_WHEN_SEEN)
+    private var currentAction by WePrefs.prefOption("moments_auto_like_action", ACTION_LIKE)
+    private var actionDelayMs by WePrefs.prefOption("moments_auto_like_action_delay_ms", 0L)
 
     private fun actionLabel(action: Int): String =
         if (action == ACTION_UNLIKE) "unlike" else "like"
 
-    private fun isTarget(wxId: String): Boolean =
-        wxId.isNotBlank() && wxId in targetWxIds()
+    private fun isTarget(wxId: String): Boolean {
+        if (wxId.isBlank()) return false
+        if (momentsUseWhitelist) {
+            if (wxId !in momentsWhitelist) return false
+        } else {
+            if (wxId !in momentsBlacklist) return false
+        }
+        return true
+    }
 
-    private fun targetWxIds(): Set<String> =
-        normalizeWxIds(WePrefs.getStringSetOrDef(KEY_TARGETS, emptySet()))
+    private var momentsUseWhitelist by WePrefs.prefOption("moments_use_whitelist", true)
+    private var momentsWhitelist by WePrefs.prefOption("moments_whitelist", emptySet())
+    private var momentsBlacklist by WePrefs.prefOption("moments_blacklist", emptySet())
 
-    private fun normalizeWxIds(wxIds: Set<String>): Set<String> =
-        wxIds.mapNotNullTo(mutableSetOf()) { it.trim().takeIf { wxId -> wxId.isNotBlank() } }
-
-    private val classImproveSnsInfo by dexClass()
-    private val classImproveInteractionLayout by dexClass()
-    private val fieldInteractionSnsInfo by dexField()
+    private val classImproveSnsInfo by dexClass {
+        matcher {
+            usingEqStrings("ImproveInfo(name=")
+        }
+    }
+    private val classImproveInteractionLayout by dexClass {
+        matcher {
+            usingEqStrings("MicroMsg.Improve.InteractionLayout")
+        }
+    }
+    private val fieldInteractionSnsInfo by dexField {
+        matcher {
+            declaredClass(classImproveInteractionLayout.clazz)
+            type(classImproveSnsInfo.clazz)
+        }
+    }
 }
 
 @Composable
@@ -596,9 +575,11 @@ private fun ModeRow(
         leadingContent = {
             RadioButton(
                 selected = checked,
-                onClick = onClick
+                onClick = null
             )
         },
-        modifier = Modifier.clickable(onClick = onClick)
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .fillMaxWidth()
     )
 }

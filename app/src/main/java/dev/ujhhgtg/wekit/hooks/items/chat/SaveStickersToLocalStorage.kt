@@ -26,7 +26,18 @@ object SaveStickersToLocalStorage : SwitchHookItem(), IResolveDex,
 
     private val TAG = This.Class.simpleName
 
-    private val classEmojiFileEncryptMgr by dexClass()
+    private val classEmojiFileEncryptMgr by dexClass {
+        matcher {
+            methods {
+                add {
+                    usingEqStrings(
+                        "MicroMsg.emoji.EmojiFileEncryptMgr",
+                        "decode emoji file failed. path is no exist :%s "
+                    )
+                }
+            }
+        }
+    }
 
     override fun onEnable() {
         WeChatMessageContextMenuApi.addProvider(this)
@@ -34,21 +45,6 @@ object SaveStickersToLocalStorage : SwitchHookItem(), IResolveDex,
 
     override fun onDisable() {
         WeChatMessageContextMenuApi.removeProvider(this)
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        classEmojiFileEncryptMgr.find(dexKit) {
-            matcher {
-                methods {
-                    add {
-                        usingEqStrings(
-                            "MicroMsg.emoji.EmojiFileEncryptMgr",
-                            "decode emoji file failed. path is no exist :%s "
-                        )
-                    }
-                }
-            }
-        }
     }
 
     override fun getMenuItems(): List<WeChatMessageContextMenuApi.MenuItem> {

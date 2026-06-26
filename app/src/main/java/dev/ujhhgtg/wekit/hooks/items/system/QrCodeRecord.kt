@@ -255,12 +255,11 @@ object QrCodeRecord : ClickableHookItem(), IResolveDex {
         WePrefs.remove(KEY_RECORDS)
     }
 
-    private val methodQBarString by dexMethod()
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodQBarString.find(dexKit) {
-            matcher {
-                usingEqStrings("MicroMsg.QBarStringHandler", "key_offline_scan_show_tips")
-            }
+    private val methodQBarString by dexMethod {
+        matcher {
+            usingEqStrings("MicroMsg.QBarStringHandler", "key_offline_scan_show_tips")
         }
+    }
+    override fun resolveDex(dexKit: DexKitBridge) {
     }
 }

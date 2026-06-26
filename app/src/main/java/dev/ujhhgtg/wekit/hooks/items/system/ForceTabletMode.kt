@@ -17,8 +17,16 @@ import org.luckypray.dexkit.DexKitBridge
 @HookItem(name = "强制平板模式", categories = ["系统与隐私"], description = "让微信将当前设备识别为平板")
 object ForceTabletMode : SwitchHookItem(), IResolveDex {
 
-    private val methodIsTablet by dexMethod()
-    private val methodOtherDeviceLoginButtonIsVisible by dexMethod()
+    private val methodIsTablet by dexMethod {
+        matcher {
+            usingEqStrings("Lenovo TB-9707F", "eebbk")
+        }
+    }
+    private val methodOtherDeviceLoginButtonIsVisible by dexMethod {
+        matcher {
+            usingEqStrings("loginAsOtherDeviceBtn")
+        }
+    }
 
     override fun onEnable() {
         methodIsTablet.hookBefore {
@@ -28,20 +36,6 @@ object ForceTabletMode : SwitchHookItem(), IResolveDex {
         methodOtherDeviceLoginButtonIsVisible.hookBefore {
             val view = args[0] as? Button? ?: return@hookBefore
             if (view.isGone) view.isGone = false
-        }
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodIsTablet.find(dexKit) {
-            matcher {
-                usingEqStrings("Lenovo TB-9707F", "eebbk")
-            }
-        }
-
-        methodOtherDeviceLoginButtonIsVisible.find(dexKit) {
-            matcher {
-                usingEqStrings("loginAsOtherDeviceBtn")
-            }
         }
     }
 

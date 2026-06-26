@@ -53,10 +53,44 @@ object WeHomeScreenPopupMenuApi : ApiHookItem(), IResolveDex {
 
     private val fakeResIdToResMap = mutableIntObjectMapOf<Drawable>()
 
-    private val methodAddItem by dexMethod()
-    private val methodHandleItemClick by dexMethod()
-    private val classMenuItemData by dexClass()
-    private val classMenuItemWrapper by dexClass()
+    private val methodAddItem by dexMethod {
+        searchPackages("com.tencent.mm.ui")
+        matcher {
+            usingEqStrings(
+                "MicroMsg.PlusSubMenuHelper",
+                "dyna plus config is null, we use default one"
+            )
+        }
+    }
+    private val methodHandleItemClick by dexMethod {
+        searchPackages("com.tencent.mm.ui")
+        matcher {
+            usingEqStrings("MicroMsg.PlusSubMenuHelper", "processOnItemClick")
+        }
+    }
+    private val classMenuItemData by dexClass {
+        searchPackages("com.tencent.mm.ui")
+        matcher {
+            addFieldForType(BString)
+            addFieldForType(BInt)
+            addFieldForType(BInt)
+            addFieldForType(BInt)
+            addFieldForType(BString)
+            fieldCount(5)
+            methods {
+                add {
+                    usingEqStrings("")
+                }
+            }
+        }
+    }
+    private val classMenuItemWrapper by dexClass {
+        searchPackages("com.tencent.mm.ui")
+        matcher {
+            addFieldForType(BBool)
+            addFieldForType(classMenuItemData.clazz)
+        }
+    }
 
     override fun onEnable() {
         // WeChat 8.0.70 moved this to com.tencent.mm.ui.HomeUI
@@ -160,50 +194,6 @@ object WeHomeScreenPopupMenuApi : ApiHookItem(), IResolveDex {
                         }
                     }
                 }
-            }
-        }
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodAddItem.find(dexKit) {
-            searchPackages("com.tencent.mm.ui")
-            matcher {
-                usingEqStrings(
-                    "MicroMsg.PlusSubMenuHelper",
-                    "dyna plus config is null, we use default one"
-                )
-            }
-        }
-
-        methodHandleItemClick.find(dexKit) {
-            searchPackages("com.tencent.mm.ui")
-            matcher {
-                usingEqStrings("MicroMsg.PlusSubMenuHelper", "processOnItemClick")
-            }
-        }
-
-        classMenuItemData.find(dexKit) {
-            searchPackages("com.tencent.mm.ui")
-            matcher {
-                addFieldForType(BString)
-                addFieldForType(BInt)
-                addFieldForType(BInt)
-                addFieldForType(BInt)
-                addFieldForType(BString)
-                fieldCount(5)
-                methods {
-                    add {
-                        usingEqStrings("")
-                    }
-                }
-            }
-        }
-
-        classMenuItemWrapper.find(dexKit) {
-            searchPackages("com.tencent.mm.ui")
-            matcher {
-                addFieldForType(BBool)
-                addFieldForType(classMenuItemData.clazz)
             }
         }
     }

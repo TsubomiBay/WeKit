@@ -62,8 +62,29 @@ object FeatureFlagManager : ClickableHookItem(), IResolveDex {
     // explanation: i: int, f: float, l: long, s: string
     // example: "RepairerConfig_QuoteJumpOpt_Int;i;1"
     //          "RepairerConfig_TimelineAd_LandingPageHalfScreen_Int;i;1"
-    private val classRepairerConfigBaseImpl by dexClass()
-    private val methodRepairerConfigApiGet by dexMethod()
+    private val classRepairerConfigBaseImpl by dexClass {
+        matcher {
+            addMethod {
+                usingEqStrings("Int")
+            }
+            addMethod {
+                usingEqStrings("Int", "Float", "String", "Long", "")
+            }
+            addMethod {
+                usingEqStrings("")
+            }
+        }
+    }
+    private val methodRepairerConfigApiGet by dexMethod {
+        matcher {
+            declaredClass {
+                usingEqStrings("RepairerConfigThread", "ValueStrategy_")
+            }
+            usingEqStrings("String", "Int", "Long", "Float", "key", "defaultValue")
+            paramTypes(String::class.java, Any::class.java)
+            returnType(Any::class.java)
+        }
+    }
 
     sealed class FeatureFlagOverride(val internalName: String) {
         data class StringValue(val name: String, val value: String) : FeatureFlagOverride(name)
@@ -129,33 +150,6 @@ object FeatureFlagManager : ClickableHookItem(), IResolveDex {
                 is FeatureFlagOverride.IntValue -> override.value
                 is FeatureFlagOverride.LongValue -> override.value
                 is FeatureFlagOverride.StringValue -> override.value
-            }
-        }
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        classRepairerConfigBaseImpl.find(dexKit) {
-            matcher {
-                addMethod {
-                    usingEqStrings("Int")
-                }
-                addMethod {
-                    usingEqStrings("Int", "Float", "String", "Long", "")
-                }
-                addMethod {
-                    usingEqStrings("")
-                }
-            }
-        }
-
-        methodRepairerConfigApiGet.find(dexKit) {
-            matcher {
-                declaredClass {
-                    usingEqStrings("RepairerConfigThread", "ValueStrategy_")
-                }
-                usingEqStrings("String", "Int", "Long", "Float", "key", "defaultValue")
-                paramTypes(String::class.java, Any::class.java)
-                returnType(Any::class.java)
             }
         }
     }

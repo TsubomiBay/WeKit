@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import dev.ujhhgtg.comptime.This
 import dev.ujhhgtg.wekit.hooks.api.net.WePacketHelper
 import dev.ujhhgtg.wekit.hooks.core.ClickableHookItem
 import dev.ujhhgtg.wekit.hooks.core.HookItem
@@ -18,6 +19,8 @@ import dev.ujhhgtg.wekit.utils.WeLogger
 
 @HookItem(name = "设置微信昵称", categories = ["个人资料"], description = "通过发包来更灵活的设置微信昵称")
 object SetProfileNickname : ClickableHookItem() {
+
+    private val TAG = This.Class.simpleName
 
     override fun onClick(context: Context) {
         showComposeDialog(context) {
@@ -44,7 +47,7 @@ object SetProfileNickname : ClickableHookItem() {
                             jsonPayload = payload
                         ) {
                             onSuccess { json, _ ->
-                                WeLogger.i("WeProfileNameSetter", "成功，回包: $json")
+                                WeLogger.i(TAG, "success: $json")
                                 showComposeDialog(context) {
                                     AlertDialogContent(
                                         title = { Text("发送成功, 响应结果:") },

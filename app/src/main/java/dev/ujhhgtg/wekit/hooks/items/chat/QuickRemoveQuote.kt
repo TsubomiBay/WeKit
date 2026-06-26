@@ -13,8 +13,21 @@ import java.lang.reflect.Field
 @HookItem(name = "快捷清除引用", categories = ["聊天"], description = "在输入退格时若输入框无文字自动清除引用")
 object QuickRemoveQuote : SwitchHookItem(), IResolveDex {
 
-    private val methodSupportAutoCompleteOnKey by dexMethod()
-    private val methodShowMsgQuoteContainer by dexMethod()
+    private val methodSupportAutoCompleteOnKey by dexMethod {
+        searchPackages("com.tencent.mm.pluginsdk.ui.chat")
+        matcher {
+            name = "onKey"
+            usingEqStrings("ChatFooterKtHelper", "supportAutoComplete err")
+        }
+    }
+    private val methodShowMsgQuoteContainer by dexMethod {
+        matcher {
+            declaredClass = "com.tencent.mm.pluginsdk.ui.chat.ChatFooter"
+            paramTypes("boolean", "boolean")
+            returnType = "void"
+            usingEqStrings("")
+        }
+    }
 
     private lateinit var chatFooterHelperField: Field
     private lateinit var chatFooterField: Field
@@ -45,25 +58,6 @@ object QuickRemoveQuote : SwitchHookItem(), IResolveDex {
 
             if (text.isEmpty() && quoteMsgId != 0L) {
                 methodShowMsgQuoteContainer.method.invoke(chatFooter, false, true)
-            }
-        }
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodSupportAutoCompleteOnKey.find(dexKit) {
-            searchPackages("com.tencent.mm.pluginsdk.ui.chat")
-            matcher {
-                name = "onKey"
-                usingEqStrings("ChatFooterKtHelper", "supportAutoComplete err")
-            }
-        }
-
-        methodShowMsgQuoteContainer.find(dexKit) {
-            matcher {
-                declaredClass = "com.tencent.mm.pluginsdk.ui.chat.ChatFooter"
-                paramTypes("boolean", "boolean")
-                returnType = "void"
-                usingEqStrings("")
             }
         }
     }

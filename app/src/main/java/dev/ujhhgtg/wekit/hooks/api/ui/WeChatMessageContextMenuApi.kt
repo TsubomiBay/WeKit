@@ -4,18 +4,16 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.graphics.drawable.Drawable
 import android.view.View
-import dev.ujhhgtg.reflekt.utils.isSubclassOf
 import dev.ujhhgtg.comptime.This
+import dev.ujhhgtg.reflekt.reflekt
+import dev.ujhhgtg.reflekt.utils.isSubclassOf
 import dev.ujhhgtg.wekit.dexkit.abc.IResolveDex
-import dev.ujhhgtg.wekit.dexkit.dsl.dexClass
 import dev.ujhhgtg.wekit.dexkit.dsl.dexMethod
 import dev.ujhhgtg.wekit.hooks.api.core.WeMessageApi
 import dev.ujhhgtg.wekit.hooks.api.core.models.MessageInfo
 import dev.ujhhgtg.wekit.hooks.core.ApiHookItem
 import dev.ujhhgtg.wekit.hooks.core.HookItem
 import dev.ujhhgtg.wekit.utils.WeLogger
-import dev.ujhhgtg.reflekt.reflekt
-import org.luckypray.dexkit.DexKitBridge
 
 @SuppressLint("StaticFieldLeak")
 @HookItem(name = "聊天界面消息菜单扩展", categories = ["API"], description = "为聊天界面消息长按菜单提供添加菜单项功能")
@@ -54,9 +52,28 @@ object WeChatMessageContextMenuApi : ApiHookItem(), IResolveDex {
         menuItems.remove(provider.javaClass.name)
     }
 
-    private val methodCreateMenu by dexMethod()
-    private val methodSelectMenuItem by dexMethod()
-    private val classChattingMessBox by dexClass()
+    private val methodCreateMenu by dexMethod {
+        searchPackages("com.tencent.mm.ui.chatting.viewitems")
+        matcher {
+            usingEqStrings("MicroMsg.ChattingItem", "msg is null!")
+        }
+    }
+    private val methodSelectMenuItem by dexMethod {
+        searchPackages("com.tencent.mm.ui.chatting.viewitems")
+        matcher {
+            usingEqStrings("MicroMsg.ChattingItem", "context item select failed, null dataTag")
+        }
+    }
+//    private val classChattingMessBox by dexClass {
+//        searchPackages("com.tencent.mm.ui.chatting.component")
+//        matcher {
+//            usingEqStrings(
+//                "MicroMsg.ChattingUI.FootComponent",
+//                "onNotifyChange event %s talker %s"
+//            )
+//        }
+//    }
+
     private lateinit var currentView: View
 
     override fun onEnable() {
@@ -125,32 +142,6 @@ object WeChatMessageContextMenuApi : ApiHookItem(), IResolveDex {
                     TAG,
                     "exception occurred while handling click event",
                     ex
-                )
-            }
-        }
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodCreateMenu.find(dexKit) {
-            searchPackages("com.tencent.mm.ui.chatting.viewitems")
-            matcher {
-                usingEqStrings("MicroMsg.ChattingItem", "msg is null!")
-            }
-        }
-
-        methodSelectMenuItem.find(dexKit) {
-            searchPackages("com.tencent.mm.ui.chatting.viewitems")
-            matcher {
-                usingEqStrings("MicroMsg.ChattingItem", "context item select failed, null dataTag")
-            }
-        }
-
-        classChattingMessBox.find(dexKit) {
-            searchPackages("com.tencent.mm.ui.chatting.component")
-            matcher {
-                usingEqStrings(
-                    "MicroMsg.ChattingUI.FootComponent",
-                    "onNotifyChange event %s talker %s"
                 )
             }
         }
