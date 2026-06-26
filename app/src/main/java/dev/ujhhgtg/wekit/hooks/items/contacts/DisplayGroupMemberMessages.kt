@@ -26,11 +26,12 @@ object DisplayGroupMemberMessages : SwitchHookItem(), WeContactPrefsScreenApi.IC
         WeContactPrefsScreenApi.removeProvider(this)
     }
 
-    override fun getContactInfoItem(activity: Activity): List<WeContactPrefsScreenApi.ContactInfoItem> {
+    override fun getContactInfoItem(activity: Activity): List<WeContactPrefsScreenApi.PreferenceItem> {
         if (!WeCurrentConversationApi.value.endsWith("@chatroom")) return emptyList()
+        if (activity.currentWxId!!.endsWith("@chatroom")) return emptyList()
 
         return listOf(
-            WeContactPrefsScreenApi.ContactInfoItem(
+            WeContactPrefsScreenApi.PreferenceItem(
                 key = PREF_KEY,
                 title = "查看群消息历史",
                 position = 1

@@ -15,4 +15,4 @@ inline fun Path.createDirectoriesNoThrow(): Path {
 
 inline val String.asPath get() = Path(this)
 
-inline fun Path.toAndroidUri() = Uri.fromFile(toFile())
+inline val Path.asAndroidUri get() = Uri.fromFile(toFile())

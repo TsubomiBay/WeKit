@@ -1,4 +1,4 @@
-package dev.ujhhgtg.wekit.hooks.items.chat
+package dev.ujhhgtg.wekit.hooks.items.voip
 
 import dev.ujhhgtg.wekit.dexkit.abc.IResolveDex
 import dev.ujhhgtg.wekit.dexkit.dsl.dexMethod
@@ -30,7 +30,7 @@ object RemoveLimitsDuringCalls : SwitchHookItem(), IResolveDex {
 
     private val methodIsDuringCall by dexMethod()
     private val methodIsMultiTalking by dexMethod()
-    private val methodIsMultiTalking2 by dexMethod()
+//    private val methodIsMultiTalking2 by dexMethod()
     private val methodIsCameraUsing by dexMethod()
     private val methodIsCameraUsing2 by dexMethod()
     private val methodIsVoiceUsing by dexMethod()
@@ -63,13 +63,13 @@ object RemoveLimitsDuringCalls : SwitchHookItem(), IResolveDex {
             }
         }
 
-        methodIsMultiTalking2.find(dexKit) {
-            matcher {
-                declaredClass(methodIsDuringCall.method.declaringClass)
-                usingEqStrings("MicroMsg.DeviceOccupy", "isMultiTalking")
-                paramCount = 2
-            }
-        }
+//        methodIsMultiTalking2.find(dexKit) {
+//            matcher {
+//                declaredClass(methodIsDuringCall.method.declaringClass)
+//                usingEqStrings("MicroMsg.DeviceOccupy", "isMultiTalking")
+//                paramCount = 2
+//            }
+//        }
 
         methodIsCameraUsing.find(dexKit) {
             matcher {

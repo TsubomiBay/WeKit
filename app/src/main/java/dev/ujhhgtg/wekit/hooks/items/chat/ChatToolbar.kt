@@ -53,9 +53,10 @@ import com.composables.icons.materialsymbols.outlined.Photo_library
 import com.composables.icons.materialsymbols.outlined.Redeem
 import com.composables.icons.materialsymbols.outlined.Video_chat
 import com.composables.icons.materialsymbols.outlined.Voice_chat
-import dev.ujhhgtg.reflekt.utils.createInstance
 import com.tencent.mm.pluginsdk.ui.chat.ChatFooter
 import dev.ujhhgtg.comptime.This
+import dev.ujhhgtg.reflekt.reflekt
+import dev.ujhhgtg.reflekt.utils.createInstance
 import dev.ujhhgtg.wekit.dexkit.abc.IResolveDex
 import dev.ujhhgtg.wekit.dexkit.dsl.dexMethod
 import dev.ujhhgtg.wekit.hooks.core.ClickableHookItem
@@ -73,9 +74,7 @@ import dev.ujhhgtg.wekit.ui.utils.setLifecycleOwner
 import dev.ujhhgtg.wekit.ui.utils.showComposeDialog
 import dev.ujhhgtg.wekit.utils.WeLogger
 import dev.ujhhgtg.wekit.utils.now
-import dev.ujhhgtg.reflekt.reflekt
 import kotlinx.coroutines.flow.MutableStateFlow
-import org.luckypray.dexkit.DexKitBridge
 import kotlin.time.Duration.Companion.seconds
 
 @SuppressLint("StaticFieldLeak")
@@ -102,14 +101,25 @@ object ChatToolbar : ClickableHookItem(), IResolveDex {
         "音乐" to MaterialSymbols.Outlined.Music_note
     )
 
-    private val methodAppPanelInitAppGrid by dexMethod()
-    private val methodAppPanelOnMeasure by dexMethod()
+    private val methodAppPanelInitAppGrid by dexMethod {
+        matcher {
+            declaredClass = "com.tencent.mm.pluginsdk.ui.chat.AppPanel"
+            usingEqStrings("MicroMsg.AppPanel", "initAppGrid()")
+        }
+    }
+    private val methodAppPanelOnMeasure by dexMethod {
+        searchPackages("com.tencent.mm.pluginsdk.ui.chat")
+        matcher {
+            usingEqStrings(
+                "MicroMsg.AppPanel",
+                "onMeasure width: %d, heigth:%d, isMeasured:%b, gridWidth:%d, gridHeight:%d"
+            )
+        }
+    }
 
     private var lastToolListUpdateTime = now()
 
-    private lateinit var appPanel: LinearLayout
-
-    data class MenuItem(
+    private data class MenuItem(
         val name: String,
         val onClickListener: AdapterView.OnItemClickListener,
         val onLongClickListener: AdapterView.OnItemLongClickListener,
@@ -126,7 +136,7 @@ object ChatToolbar : ClickableHookItem(), IResolveDex {
     override fun onEnable() {
         methodAppPanelInitAppGrid.apply {
             hookBefore {
-                appPanel = args[0] as LinearLayout
+                val appPanel = args[0] as LinearLayout
 
                 val measurer = methodAppPanelOnMeasure.method.declaringClass
                     .createInstance(appPanel)
@@ -203,51 +213,41 @@ object ChatToolbar : ClickableHookItem(), IResolveDex {
                     setContent {
                         AppTheme {
                             val tools by toolsState.collectAsStateWithLifecycle()
+                            val itemsOrder = remember { itemsOrder }
+                            val enabledItems = remember { enabledItems }
 
-                            val allItems = remember(tools) {
+                            val sortedVisibleItems = remember(tools) {
+                                if (tools.isEmpty()) return@remember emptyList()
+
+                                val firstTool = tools[0].second
+                                val orderList = itemsOrder.split(",").filter { it.isNotEmpty() }
                                 val list = mutableListOf<Pair<String, () -> Unit>>()
-                                if (tools.isNotEmpty()) {
-                                    val firstTool = tools[0].second
-                                    list.add("相册" to {
-                                        firstTool.onClickListener.onItemClick(
-                                            firstTool.gridView,
-                                            firstTool.itemView,
-                                            0,
-                                            0
-                                        )
-                                    })
-                                    list.add("系统拍摄" to {
-                                        firstTool.onLongClickListener.onItemLongClick(
-                                            null,
-                                            null,
-                                            0,
-                                            0
-                                        )
-                                    })
 
-                                    tools.forEach { (name, menuItem) ->
-                                        if (name in NAME_TO_ICON_MAP && name != "相册" && name != "系统拍摄") {
-                                            list.add(name to {
-                                                menuItem.onClickListener.onItemClick(
-                                                    menuItem.gridView,
-                                                    menuItem.itemView,
-                                                    menuItem.indexInGrid + 1,
-                                                    0
-                                                )
-                                            })
-                                        }
+                                // 预置快捷项
+                                list.add("相册" to {
+                                    firstTool.onClickListener.onItemClick(firstTool.gridView, firstTool.itemView, 0, 0)
+                                })
+                                list.add("系统拍摄" to {
+                                    firstTool.onLongClickListener.onItemLongClick(null, null, 0, 0)
+                                })
+
+                                // 遍历并装载动态项
+                                tools.forEach { (name, menuItem) ->
+                                    if (name in NAME_TO_ICON_MAP && name != "相册" && name != "系统拍摄") {
+                                        list.add(name to {
+                                            menuItem.onClickListener.onItemClick(
+                                                menuItem.gridView,
+                                                menuItem.itemView,
+                                                menuItem.indexInGrid + 1,
+                                                0
+                                            )
+                                        })
                                     }
                                 }
-                                list
-                            }
 
-                            val order = itemsOrder.split(",").filter { it.isNotEmpty() }
-                            val enabled = enabledItems
-
-                            val sortedVisibleItems = remember(allItems, itemsOrder, enabledItems) {
-                                allItems.filter { it.first in enabled }
+                                list.filter { it.first in enabledItems }
                                     .sortedBy { item ->
-                                        val idx = order.indexOf(item.first)
+                                        val idx = orderList.indexOf(item.first)
                                         if (idx == -1) Int.MAX_VALUE else idx
                                     }
                             }
@@ -335,25 +335,6 @@ object ChatToolbar : ClickableHookItem(), IResolveDex {
                     }
                 }
             )
-        }
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodAppPanelInitAppGrid.find(dexKit) {
-            matcher {
-                declaredClass = "com.tencent.mm.pluginsdk.ui.chat.AppPanel"
-                usingEqStrings("MicroMsg.AppPanel", "initAppGrid()")
-            }
-        }
-
-        methodAppPanelOnMeasure.find(dexKit) {
-            searchPackages("com.tencent.mm.pluginsdk.ui.chat")
-            matcher {
-                usingEqStrings(
-                    "MicroMsg.AppPanel",
-                    "onMeasure width: %d, heigth:%d, isMeasured:%b, gridWidth:%d, gridHeight:%d"
-                )
-            }
         }
     }
 }

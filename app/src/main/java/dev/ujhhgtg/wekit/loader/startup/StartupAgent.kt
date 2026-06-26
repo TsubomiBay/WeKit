@@ -41,6 +41,7 @@ object StartupAgent {
 
         val ctx = getBaseApplication()
         HostInfo.init(ctx)
+//        SignatureVerifier.verify(ctx)
         LibXposedApiByteCodeGenerator.init()
         NativeLoader.init(ctx)
         WeLauncher.init(ctx)

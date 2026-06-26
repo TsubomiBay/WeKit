@@ -67,7 +67,7 @@ import dev.ujhhgtg.wekit.dexkit.dsl.dexMethod
 import dev.ujhhgtg.wekit.hooks.api.core.WeDatabaseApi
 import dev.ujhhgtg.wekit.hooks.api.core.models.IWeContact
 import dev.ujhhgtg.wekit.hooks.api.ui.WeContactPrefsScreenApi
-import dev.ujhhgtg.wekit.hooks.api.ui.WeContactPrefsScreenApi.ContactInfoItem
+import dev.ujhhgtg.wekit.hooks.api.ui.WeContactPrefsScreenApi.PreferenceItem
 import dev.ujhhgtg.wekit.hooks.api.ui.WeContactPrefsScreenApi.IContactInfoProvider
 import dev.ujhhgtg.wekit.hooks.core.ClickableHookItem
 import dev.ujhhgtg.wekit.hooks.core.HookItem
@@ -85,7 +85,6 @@ import dev.ujhhgtg.wekit.utils.fs.KnownPaths
 import dev.ujhhgtg.wekit.utils.reflection.BString
 import dev.ujhhgtg.wekit.utils.reflection.bool
 import kotlinx.serialization.json.Json
-import org.luckypray.dexkit.DexKitBridge
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.Collections
@@ -285,10 +284,10 @@ object CustomLocalFriendAvatars : ClickableHookItem(), IContactInfoProvider, IRe
         avatarMapCache = null
     }
 
-    override fun getContactInfoItem(activity: Activity): List<ContactInfoItem> {
+    override fun getContactInfoItem(activity: Activity): List<PreferenceItem> {
         val wxId = activity.currentWxId ?: return emptyList()
         val hasCustomAvatar = avatarMap.containsKey(wxId)
-        return listOf(ContactInfoItem(
+        return listOf(PreferenceItem(
             key = PREF_KEY,
             title = if (hasCustomAvatar) "更换自定义头像" else "添加自定义头像",
             position = 1

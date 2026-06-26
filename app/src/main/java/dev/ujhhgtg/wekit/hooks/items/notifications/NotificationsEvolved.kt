@@ -41,6 +41,7 @@ import kotlin.io.path.div
 import kotlin.io.path.exists
 import kotlin.io.path.pathString
 import kotlin.io.path.writeBytes
+import kotlin.time.Duration.Companion.milliseconds
 
 @HookItem(name = "通知进化", categories = ["通知"], description = "让微信的新消息通知更易用\n1. 「快速回复」按钮\n2. 「标记为已读」按钮\n3. 使用原生对话样式 (MessagingStyle)")
 object NotificationsEvolved : SwitchHookItem() {
@@ -107,7 +108,7 @@ object NotificationsEvolved : SwitchHookItem() {
                 } else {
                     while (runCatching { WeApi.selfWxId.isEmpty() }
                             .getOrDefault(true)) {
-                        delay(2000)
+                        delay(2000.milliseconds)
                     }
 
                     val urlString = WeDatabaseApi.getAvatarUrl(WeApi.selfWxId)

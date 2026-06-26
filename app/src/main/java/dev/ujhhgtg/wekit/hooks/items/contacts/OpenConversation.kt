@@ -14,6 +14,7 @@ import dev.ujhhgtg.wekit.ui.content.AlertDialogContent
 import dev.ujhhgtg.wekit.ui.content.Button
 import dev.ujhhgtg.wekit.ui.content.TextButton
 import dev.ujhhgtg.wekit.ui.utils.showComposeDialog
+import dev.ujhhgtg.wekit.utils.android.showToast
 
 @HookItem(name = "跳转对话", categories = ["联系人与群组"], description = "打开指定微信 ID 的对话/好友主页/好友设置界面")
 object OpenConversation : ClickableHookItem() {
@@ -32,12 +33,19 @@ object OpenConversation : ClickableHookItem() {
                         label = { Text("微信 ID") })
                 },
                 confirmButton = {
+                    if (wxId.isBlank()) {
+                        showToast(context, "微信 ID 为空!")
+                        return@AlertDialogContent
+                    }
+
                     TextButton(onClick = {
                         WeApi.openContact(context, wxId, WeApi.OpenContactDestination.HOMEPAGE)
                     }) { Text("好友主页") }
+
                     TextButton(onClick = {
                         WeApi.openContact(context, wxId, WeApi.OpenContactDestination.SETTINGS)
                     }) { Text("好友设置") }
+
                     Button(onClick = {
                         WeApi.openContact(context, wxId, WeApi.OpenContactDestination.CONVERSATION)
                     }) { Text("对话") }

@@ -2,7 +2,7 @@ package dev.ujhhgtg.wekit.hooks.items.contacts
 
 import android.app.Activity
 import dev.ujhhgtg.wekit.hooks.api.ui.WeContactPrefsScreenApi
-import dev.ujhhgtg.wekit.hooks.api.ui.WeContactPrefsScreenApi.ContactInfoItem
+import dev.ujhhgtg.wekit.hooks.api.ui.WeContactPrefsScreenApi.PreferenceItem
 import dev.ujhhgtg.wekit.hooks.api.ui.WeContactPrefsScreenApi.IContactInfoProvider
 import dev.ujhhgtg.wekit.hooks.core.HookItem
 import dev.ujhhgtg.wekit.hooks.core.SwitchHookItem
@@ -15,10 +15,10 @@ object ShowWxIdInContactDetails : SwitchHookItem(), IContactInfoProvider {
 
     private const val PREF_KEY = "wxid_display"
 
-    override fun getContactInfoItem(activity: Activity): List<ContactInfoItem> {
+    override fun getContactInfoItem(activity: Activity): List<PreferenceItem> {
         val wxId = activity.currentWxId
 
-        return listOf(ContactInfoItem(
+        return listOf(PreferenceItem(
             key = PREF_KEY,
             title = "微信 ID: ${wxId ?: "获取失败"}",
             position = 1

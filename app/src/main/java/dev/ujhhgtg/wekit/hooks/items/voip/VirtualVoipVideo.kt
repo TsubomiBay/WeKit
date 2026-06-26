@@ -1,6 +1,6 @@
 @file:Suppress("DEPRECATION")
 
-package dev.ujhhgtg.wekit.hooks.items.chat
+package dev.ujhhgtg.wekit.hooks.items.voip
 
 import android.content.Context
 import android.graphics.ColorSpace

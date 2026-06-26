@@ -4,8 +4,7 @@ import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.view.animation.Interpolator
-import android.widget.FrameLayout
+import android.view.animation.OvershootInterpolator
 import de.robv.android.xposed.XC_MethodHook
 import dev.ujhhgtg.reflekt.reflekt
 import dev.ujhhgtg.wekit.dexkit.abc.IResolveDex
@@ -19,10 +18,7 @@ import dev.ujhhgtg.wekit.hooks.core.SwitchHookItem
 import dev.ujhhgtg.wekit.ui.utils.dpToPx
 import java.util.Collections
 import java.util.WeakHashMap
-import kotlin.math.PI
 import kotlin.math.abs
-import kotlin.math.cos
-import kotlin.math.exp
 
 @HookItem(name = "左划引用消息", categories = ["聊天"], description = "在消息上左划以引用")
 object SwipeToQuote : SwitchHookItem(), IResolveDex,
@@ -43,10 +39,13 @@ object SwipeToQuote : SwitchHookItem(), IResolveDex,
     private val states: MutableMap<View, SwipeState> =
         Collections.synchronizedMap(WeakHashMap())
 
+    private val springInterpolator = OvershootInterpolator(1.3f)
+
     // ── lifecycle ────────────────────────────────────────────────────────────
 
     override fun onEnable() {
         WeChatMessageViewApi.addListener(this)
+
         ViewGroup::class.reflekt()
             .firstMethod { name = "onInterceptTouchEvent" }
             .hookAfter {
@@ -56,15 +55,15 @@ object SwipeToQuote : SwitchHookItem(), IResolveDex,
 
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
-                        s.startX = event.x
-                        s.startY = event.y
+                        s.startX = event.rawX
+                        s.startY = event.rawY
                         s.isDragging = false
                         s.triggered = false
                     }
 
                     MotionEvent.ACTION_MOVE -> {
-                        val dx = event.x - s.startX
-                        val dy = event.y - s.startY
+                        val dx = event.rawX - s.startX
+                        val dy = event.rawY - s.startY
                         if (!s.isDragging && abs(dx) > abs(dy) && dx < 0) {
                             s.isDragging = true
                             v.parent?.requestDisallowInterceptTouchEvent(true)
@@ -88,7 +87,7 @@ object SwipeToQuote : SwitchHookItem(), IResolveDex,
                 when (event.action) {
                     MotionEvent.ACTION_MOVE -> {
                         if (s.isDragging) {
-                            val rawDx = event.x - s.startX
+                            val rawDx = event.rawX - s.startX
                             v.translationX = rawDx.coerceIn(-s.triggerThreshold, 0f)
                             if (!s.triggered && rawDx < -s.triggerThreshold) {
                                 s.triggered = true
@@ -103,7 +102,7 @@ object SwipeToQuote : SwitchHookItem(), IResolveDex,
                             v.animate()
                                 .translationX(0f)
                                 .setDuration(250)
-                                .setInterpolator(SpringInterpolator())
+                                .setInterpolator(springInterpolator)
                                 .start()
                             if (s.triggered) onSwipeLeft(v, s.chattingContext)
                             v.parent?.requestDisallowInterceptTouchEvent(false)
@@ -141,11 +140,6 @@ object SwipeToQuote : SwitchHookItem(), IResolveDex,
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    private class SpringInterpolator : Interpolator {
-        override fun getInterpolation(t: Float): Float =
-            (1f - cos(t * PI * 2.5) * exp(-t * 5f)).toFloat()
-    }
-
     private fun onSwipeLeft(originalView: View, chattingContext: Any) {
         val apiMan = chattingContext.reflekt()
             .firstField { type = WeServiceApi.classApiManager }
@@ -153,14 +147,13 @@ object SwipeToQuote : SwitchHookItem(), IResolveDex,
         val api = WeServiceApi.getApiByClass(apiMan, classChattingUiFootComponent.clazz)
         val chatFooter = api.reflekt()
             .firstField { type = "com.tencent.mm.pluginsdk.ui.chat.ChatFooter" }
-            .get()!! as FrameLayout
+            .get()!!
         val quoteMethod = chatFooter.reflekt()
             .firstMethod {
                 parameters { params -> params[0] == WeMessageApi.classMsgInfo.clazz }
                 returnType = Boolean::class
             }.self
-        val chatHolder = originalView.tag.reflekt()
-            .firstField { name = "chatHolder"; superclass() }.get()!!
+        val chatHolder = originalView.tag.reflekt().getField("chatHolder", true)!!
         val msgInfo = methodGetMsgInfo.method.invoke(null, chatHolder, chattingContext)
         if (quoteMethod.parameterCount == 1) quoteMethod.invoke(chatFooter, msgInfo)
         else quoteMethod.invoke(chatFooter, msgInfo, null)
@@ -175,6 +168,7 @@ object SwipeToQuote : SwitchHookItem(), IResolveDex,
             )
         }
     }
+
     private val methodGetMsgInfo by dexMethod {
         searchPackages("com.tencent.mm.ui.chatting.viewitems")
         matcher { usingEqStrings("ItemDataTag", "getCurrentMsg2 err") }

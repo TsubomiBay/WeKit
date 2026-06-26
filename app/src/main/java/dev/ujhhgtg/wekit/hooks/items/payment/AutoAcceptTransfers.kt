@@ -2,6 +2,8 @@ package dev.ujhhgtg.wekit.hooks.items.payment
 
 import android.content.ContentValues
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -45,6 +47,15 @@ object AutoAcceptTransfers : ClickableHookItem(), IResolveDex, WeDatabaseListene
 
     private val TAG = This.Class.simpleName
 
+    private var transferNotif by WePrefs.prefOption("transfer_notification", false)
+    private var transferSelf by WePrefs.prefOption("transfer_self", false)
+    private var transferUseWhitelist by WePrefs.prefOption("transfer_use_whitelist", false)
+    private var transferWhitelist by WePrefs.prefOption("transfer_whitelist", emptySet())
+    private var transferBlacklist by WePrefs.prefOption("transfer_blacklist", emptySet())
+    private var transferDelayCustom by WePrefs.prefOption("transfer_delay_custom", "500")
+    private var transferDelayRandomRange by WePrefs.prefOption("transfer_delay_random_range", "300")
+    private var transferAutoReply by WePrefs.prefOption("transfer_auto_reply", "")
+
     override fun onEnable() {
         WeDatabaseListenerApi.addListener(this)
     }
@@ -76,7 +87,7 @@ object AutoAcceptTransfers : ClickableHookItem(), IResolveDex, WeDatabaseListene
     }
 
     private fun handleTransfer(values: ContentValues) {
-        if (values.getAsInteger("isSend") == 1 && !WePrefs.getBoolOrFalse("transfer_self")) return
+        if (values.getAsInteger("isSend") == 1 && !transferSelf) return
 
         val content = values.getAsString("content") ?: return
 
@@ -100,13 +111,16 @@ object AutoAcceptTransfers : ClickableHookItem(), IResolveDex, WeDatabaseListene
             return
         }
 
-        val useWhitelist = WePrefs.getBoolOrFalse("transfer_use_whitelist")
-        if (useWhitelist) {
-            val whitelist = WePrefs.getStringSetOrDef("transfer_whitelist", emptySet())
-            if (payerUsername !in whitelist) return
+        val receiverUsername = transferMsg.receiverUsername
+        if (receiverUsername != WeApi.selfWxId) {
+            WeLogger.w(TAG, "self is not receiver, ignoring")
+            return
+        }
+
+        if (transferUseWhitelist) {
+            if (payerUsername !in transferWhitelist) return
         } else {
-            val blacklist = WePrefs.getStringSetOrDef("transfer_blacklist", emptySet())
-            if (payerUsername in blacklist) return
+            if (payerUsername in transferBlacklist) return
         }
 
         val netScene = run {
@@ -124,10 +138,8 @@ object AutoAcceptTransfers : ClickableHookItem(), IResolveDex, WeDatabaseListene
             }
         }
 
-        val customDelay =
-            WePrefs.getStringOrDef("transfer_delay_custom", "0").toLongOrNull() ?: 0L
-        val randomRange = (WePrefs.getStringOrDef("transfer_delay_random_range", "300")
-            .toLongOrNull() ?: 300L).coerceAtLeast(0)
+        val customDelay = transferDelayCustom.toLongOrNull() ?: 0L
+        val randomRange = (transferDelayRandomRange.toLongOrNull() ?: 300L).coerceAtLeast(0)
 
         WeLogger.i(TAG, "config: customDelay=$customDelay, randomRange=$randomRange")
 
@@ -155,15 +167,18 @@ object AutoAcceptTransfers : ClickableHookItem(), IResolveDex, WeDatabaseListene
                 WeNetSceneApi.sendNetScene(netScene)
                 WeLogger.i(TAG, "constructed net scene and added to queue")
 
-                val autoReply = WePrefs.getStringOrDef("transfer_auto_reply", "")
+                val autoReply = transferAutoReply
                 if (autoReply.isNotBlank()) {
                     WeMessageApi.sendText(msgInfo.talker, autoReply.replace($$"$amount", transferMsg.feedesc))
                 }
 
-                if (!WePrefs.getBoolOrFalse("transfer_notification")) return@thread
+                if (!transferNotif) return@thread
 
                 val displayName = WeDatabaseApi.getDisplayName(payerUsername)
-                showToast("收到「${displayName}」的转账 ${transferMsg.feedesc}")
+
+                Handler(Looper.getMainLooper()).post {
+                    showToast("收到「${displayName}」的转账 ${transferMsg.feedesc}")
+                }
             } catch (e: Throwable) {
                 WeLogger.e(TAG, "failed to send accept transfer request", e)
             }
@@ -172,12 +187,12 @@ object AutoAcceptTransfers : ClickableHookItem(), IResolveDex, WeDatabaseListene
 
     override fun onClick(context: Context) {
         showComposeDialog(context) {
-            var notification by remember { mutableStateOf(WePrefs.getBoolOrFalse("transfer_notification")) }
-            var self by remember { mutableStateOf(WePrefs.getBoolOrFalse("transfer_self")) }
-            var delayInput by remember { mutableStateOf(WePrefs.getStringOrDef("transfer_delay_custom", "500")) }
-            var useWhitelist by remember { mutableStateOf(WePrefs.getBoolOrFalse("transfer_use_whitelist")) }
-            var randomRangeInput by remember { mutableStateOf(WePrefs.getStringOrDef("transfer_delay_random_range", "300")) }
-            var autoReplyInput by remember { mutableStateOf(WePrefs.getStringOrDef("transfer_auto_reply", "")) }
+            var notification by remember { mutableStateOf(transferNotif) }
+            var self by remember { mutableStateOf(transferSelf) }
+            var delayInput by remember { mutableStateOf(transferDelayCustom) }
+            var useWhitelist by remember { mutableStateOf(transferUseWhitelist) }
+            var randomRangeInput by remember { mutableStateOf(transferDelayRandomRange) }
+            var autoReplyInput by remember { mutableStateOf(transferAutoReply) }
 
             AlertDialogContent(
                 title = { Text("自动接收转账") },
@@ -194,8 +209,7 @@ object AutoAcceptTransfers : ClickableHookItem(), IResolveDex, WeDatabaseListene
                             supportingContent = { Text("点击选择联系人") },
                             modifier = Modifier.clickable {
                                 val regularContacts = WeDatabaseApi.getFriends() + WeDatabaseApi.getGroups()
-                                val listKey = if (useWhitelist) "transfer_whitelist" else "transfer_blacklist"
-                                val currentList = WePrefs.getStringSetOrDef(listKey, emptySet())
+                                val currentList = if (useWhitelist) transferWhitelist else transferBlacklist
 
                                 showComposeDialog(context) {
                                     ContactsSelector(
@@ -203,9 +217,13 @@ object AutoAcceptTransfers : ClickableHookItem(), IResolveDex, WeDatabaseListene
                                         contacts = regularContacts,
                                         initialSelectedWxIds = currentList,
                                         onDismiss = onDismiss
-                                    ) {
-                                        WePrefs.putStringSet(listKey, it)
-                                        showToast("已保存 ${it.size} 个联系人, 重启微信以使更改生效")
+                                    ) { selected ->
+                                        if (useWhitelist) {
+                                            transferWhitelist = selected
+                                        } else {
+                                            transferBlacklist = selected
+                                        }
+                                        showToast("已保存 ${selected.size} 个联系人, 重启微信以使更改生效")
                                         onDismiss()
                                     }
                                 }
@@ -249,12 +267,12 @@ object AutoAcceptTransfers : ClickableHookItem(), IResolveDex, WeDatabaseListene
                 },
                 confirmButton = {
                     Button(onClick = {
-                        WePrefs.putBool("transfer_notification", notification)
-                        WePrefs.putBool("transfer_self", self)
-                        WePrefs.putString("transfer_delay_custom", delayInput.ifBlank { "300" })
-                        WePrefs.putBool("transfer_use_whitelist", useWhitelist)
-                        WePrefs.putString("transfer_delay_random_range", randomRangeInput.ifBlank { "300" })
-                        WePrefs.putString("transfer_auto_reply", autoReplyInput)
+                        transferNotif = notification
+                        transferSelf = self
+                        transferDelayCustom = delayInput.ifBlank { "500" }
+                        transferUseWhitelist = useWhitelist
+                        transferDelayRandomRange = randomRangeInput.ifBlank { "300" }
+                        transferAutoReply = autoReplyInput
                         onDismiss()
                     }) { Text("确定") }
                 },

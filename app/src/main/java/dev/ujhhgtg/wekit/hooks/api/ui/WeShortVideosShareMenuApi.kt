@@ -3,13 +3,12 @@ package dev.ujhhgtg.wekit.hooks.api.ui
 import android.graphics.drawable.Drawable
 import android.view.ContextMenu
 import de.robv.android.xposed.XC_MethodHook
+import dev.ujhhgtg.reflekt.reflekt
 import dev.ujhhgtg.wekit.dexkit.abc.IResolveDex
 import dev.ujhhgtg.wekit.dexkit.dsl.dexMethod
 import dev.ujhhgtg.wekit.hooks.core.ApiHookItem
 import dev.ujhhgtg.wekit.hooks.core.HookItem
-import dev.ujhhgtg.reflekt.reflekt
 import org.json.JSONObject
-import org.luckypray.dexkit.DexKitBridge
 import java.util.LinkedList
 
 @HookItem(name = "视频号分享菜单扩展", categories = ["API"], description = "为视频号分享菜单提供添加菜单项功能")
@@ -35,10 +34,50 @@ object WeShortVideosShareMenuApi : ApiHookItem(), IResolveDex {
         menuItems.remove(provider.javaClass.name)
     }
 
-    private val methodCreateMenu1 by dexMethod()
-    private val methodOnSelectMenuItem1 by dexMethod()
-    private val methodCreateMenu2 by dexMethod()
-    private val methodOnSelectMenuItem2 by dexMethod()
+    private val methodCreateMenu1 by dexMethod {
+        searchPackages("com.tencent.mm.plugin.finder.feed")
+        matcher {
+            name = "onCreateMMMenu"
+            usingEqStrings("pos is error ")
+        }
+    }
+    private val methodOnSelectMenuItem1 by dexMethod {
+        searchPackages("com.tencent.mm.plugin.finder.feed")
+        matcher {
+            name = "onMMMenuItemSelected"
+            usingEqStrings("[getMoreMenuItemSelectedListener] feed ")
+        }
+    }
+    private val methodCreateMenu2 by dexMethod {
+        searchPackages("com.tencent.mm.plugin.finder.feed")
+        matcher {
+            usingEqStrings("feed", "menu", "sheet", "holder", "KEY_FINDER_SELF_FLAG")
+        }
+    }
+    private val methodOnSelectMenuItem2 by dexMethod {
+        searchPackages("com.tencent.mm.plugin.finder.feed")
+        matcher {
+            declaredClass {
+                usingEqStrings("Finder.FinderLoaderFeedUIContract.Presenter")
+            }
+
+            usingEqStrings("getMoreMenuItemSelectedListener feed ")
+        }
+    }
+    private val methodCreateMenu3 by dexMethod {
+        searchPackages("com.tencent.mm.plugin.finder.feed")
+        matcher {
+            name = "onCreateMMMenu"
+            usingEqStrings("getCreateSecondMoreMenuListener: username=")
+        }
+    }
+    private val methodOnSelectMenuItem3 by dexMethod {
+        searchPackages("com.tencent.mm.plugin.finder.feed")
+        matcher {
+            name = "onMMMenuItemSelected"
+            usingEqStrings("button_speedplay", "ref_eid")
+        }
+    }
 
     override fun onEnable() {
         methodCreateMenu1.hookBefore {
@@ -64,6 +103,21 @@ object WeShortVideosShareMenuApi : ApiHookItem(), IResolveDex {
         methodOnSelectMenuItem2.hookBefore {
             val menuItem = args[1] as android.view.MenuItem
             val baseFinderFeed = args[0]
+            handleOnSelectMenuItem(this, menuItem, baseFinderFeed)
+        }
+
+        methodCreateMenu3.hookBefore {
+            val menu = args[0] as ContextMenu
+            handleCreateMenu(menu)
+        }
+
+        methodOnSelectMenuItem3.hookBefore {
+            val menuItem = args[0] as android.view.MenuItem
+            val baseFinderFeed = thisObject.reflekt()
+                .firstField {
+                    type = "com.tencent.mm.plugin.finder.model.BaseFinderFeed"
+                }
+                .get()!!
             handleOnSelectMenuItem(this, menuItem, baseFinderFeed)
         }
     }
@@ -115,42 +169,6 @@ object WeShortVideosShareMenuApi : ApiHookItem(), IResolveDex {
                 item.onClick(param, mediaType, mediaJsonList)
                 param.result = null
                 return
-            }
-        }
-    }
-
-    override fun resolveDex(dexKit: DexKitBridge) {
-        methodCreateMenu1.find(dexKit) {
-            searchPackages("com.tencent.mm.plugin.finder.feed")
-            matcher {
-                name = "onCreateMMMenu"
-                usingEqStrings("pos is error ")
-            }
-        }
-
-        methodOnSelectMenuItem1.find(dexKit) {
-            searchPackages("com.tencent.mm.plugin.finder.feed")
-            matcher {
-                name = "onMMMenuItemSelected"
-                usingEqStrings("[getMoreMenuItemSelectedListener] feed ")
-            }
-        }
-
-        methodCreateMenu2.find(dexKit) {
-            searchPackages("com.tencent.mm.plugin.finder.feed")
-            matcher {
-                usingEqStrings("feed", "menu", "sheet", "holder", "KEY_FINDER_SELF_FLAG")
-            }
-        }
-
-        methodOnSelectMenuItem2.find(dexKit) {
-            searchPackages("com.tencent.mm.plugin.finder.feed")
-            matcher {
-                declaredClass {
-                    usingEqStrings("Finder.FinderLoaderFeedUIContract.Presenter")
-                }
-
-                usingEqStrings("getMoreMenuItemSelectedListener feed ")
             }
         }
     }

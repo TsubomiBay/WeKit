@@ -24,11 +24,11 @@ import java.util.concurrent.CopyOnWriteArrayList
 object WeContactPrefsScreenApi : ApiHookItem() {
 
     interface IContactInfoProvider {
-        fun getContactInfoItem(activity: Activity): List<ContactInfoItem>
+        fun getContactInfoItem(activity: Activity): List<PreferenceItem>
         fun onItemClick(activity: Activity, key: String): Boolean
     }
 
-    data class ContactInfoItem(
+    data class PreferenceItem(
         val key: String,
         val title: String,
         val summary: String? = null,

@@ -19,7 +19,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.composables.icons.materialsymbols.MaterialSymbols
 import com.composables.icons.materialsymbols.outlinedfilled.Visibility
@@ -27,6 +26,7 @@ import com.composables.icons.materialsymbols.outlinedfilled.Visibility_off
 import com.tencent.mm.plugin.fingerprint.ui.FingerPrintAuthTransparentUI
 import com.tenpay.android.wechat.MyKeyboardWindow
 import dev.ujhhgtg.comptime.This
+import dev.ujhhgtg.reflekt.reflekt
 import dev.ujhhgtg.wekit.activity.TransparentActivity
 import dev.ujhhgtg.wekit.hooks.core.ClickableHookItem
 import dev.ujhhgtg.wekit.hooks.core.HookItem
@@ -43,7 +43,6 @@ import dev.ujhhgtg.wekit.utils.TargetProcesses
 import dev.ujhhgtg.wekit.utils.WeLogger
 import dev.ujhhgtg.wekit.utils.android.showToast
 import dev.ujhhgtg.wekit.utils.nul
-import dev.ujhhgtg.reflekt.reflekt
 
 
 @HookItem(name = "指纹支付", categories = ["红包与支付"], description = "使用指纹快捷确认支付")
@@ -165,7 +164,7 @@ object FingerprintPay : ClickableHookItem() {
         activity: FragmentActivity,
         onSuccess: (BiometricPrompt.AuthenticationResult) -> Unit
     ): BiometricPrompt {
-        val executor = ContextCompat.getMainExecutor(activity)
+        val executor = activity.mainExecutor
         return BiometricPrompt(
             activity,
             executor,
@@ -199,50 +198,36 @@ object FingerprintPay : ClickableHookItem() {
     // --- ENCRYPT ---
     @RequiresApi(Build.VERSION_CODES.R)
     fun encryptWithBiometric(context: Context, plaintext: String, onSuccess: (EncryptedData) -> Unit) {
-        val cipher = try {
-            CryptoManager.getEncryptCipher()
-        } catch (_: KeyPermanentlyInvalidatedException) {
-            showToast("检测到新生物特征, 密钥已重置, 请在模块设置中重新加密支付密码!")
-            return
-        } catch (e: Exception) {
-            showToast("捕获到未处理的异常! 请向模块作者报告问题")
-            WeLogger.e(TAG, "unhandled exception", e)
-            return
-        }
         TransparentActivity.launch(context) {
-            buildPrompt(this) { result ->
-                val authorizedCipher = result.cryptoObject?.cipher ?: run {
-                    showToast("指纹验证成功, 但无法获取密文对象! 请向模块作者报告问题")
-                    return@buildPrompt
+            buildPrompt(this) { _ ->
+                try {
+                    val encData = CryptoManager.encrypt(plaintext)
+                    onSuccess(encData)
+                } catch (_: KeyPermanentlyInvalidatedException) {
+                    showToast(context, "检测到新生物特征, 密钥已重置, 请在模块设置中重新加密支付密码!")
+                } catch (e: Exception) {
+                    showToast(context, "加密失败! 请向模块作者报告问题")
+                    WeLogger.e(TAG, "failed time-bound encryption", e)
                 }
-                onSuccess(CryptoManager.encrypt(plaintext, authorizedCipher))
-            }.authenticate(promptInfo, BiometricPrompt.CryptoObject(cipher))
+            }.authenticate(promptInfo)
         }
     }
 
     // --- DECRYPT ---
     @RequiresApi(Build.VERSION_CODES.R)
     fun decryptWithBiometric(context: Context, encryptedData: EncryptedData, onSuccess: (String) -> Unit) {
-        val iv = android.util.Base64.decode(encryptedData.iv, android.util.Base64.DEFAULT)
-        val cipher = try {
-            CryptoManager.getDecryptCipher(iv)
-        } catch (_: KeyPermanentlyInvalidatedException) {
-            showToast("检测到新生物特征, 密钥已重置, 请在模块设置中重新加密支付密码!")
-            return
-        } catch (e: Exception) {
-            showToast("捕获到未处理的异常! 请向模块作者报告问题")
-            WeLogger.e(TAG, "unhandled exception", e)
-            return
-        }
         TransparentActivity.launch(context) {
-            buildPrompt(this) { result ->
-                val authorizedCipher = result.cryptoObject?.cipher ?: run {
-                    showToast("指纹验证成功, 但无法获取密文对象! 请向模块作者报告问题")
-                    return@buildPrompt
+            buildPrompt(this) { _ ->
+                try {
+                    val plaintext = CryptoManager.decrypt(encryptedData)
+                    onSuccess(plaintext)
+                } catch (_: KeyPermanentlyInvalidatedException) {
+                    showToast(context, "检测到新生物特征, 密钥已重置, 请在模块设置中重新加密支付密码!")
+                } catch (e: Exception) {
+                    showToast(context, "解密失败! 请向模块作者报告问题")
+                    WeLogger.e(TAG, "failed time-bound decryption", e)
                 }
-                val plaintext = CryptoManager.decrypt(encryptedData, authorizedCipher)
-                onSuccess(plaintext)
-            }.authenticate(promptInfo, BiometricPrompt.CryptoObject(cipher))
+            }.authenticate(promptInfo)
         }
     }
 

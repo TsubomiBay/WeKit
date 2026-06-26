@@ -59,6 +59,15 @@ object AutoOpenRedPackets : ClickableHookItem(), WeDatabaseListenerApi.IInsertLi
 
     private val currentRedPacketMap = ConcurrentHashMap<String, RedPacketInfo>()
 
+    private var packetNotif by WePrefs.prefOption("red_packet_notification", false)
+    private var packetSelf by WePrefs.prefOption("red_packet_self", false)
+    private var packetUseWhitelist by WePrefs.prefOption("red_packet_use_whitelist", false)
+    private var packetWhitelist by WePrefs.prefOption("red_packet_whitelist", emptySet())
+    private var packetBlacklist by WePrefs.prefOption("red_packet_blacklist", emptySet())
+    private var packetDelayCustom by WePrefs.prefOption("red_packet_delay_custom", "0")
+    private var packetDelayRandomRange by WePrefs.prefOption("red_packet_delay_random_range", "300")
+    private var packetAutoReply by WePrefs.prefOption("red_packet_auto_reply", "")
+
     private data class RedPacketInfo(
         val sendId: String,
         val nativeUrl: String,
@@ -95,8 +104,7 @@ object AutoOpenRedPackets : ClickableHookItem(), WeDatabaseListenerApi.IInsertLi
                         info.headImg, info.nickName, info.talker,
                         "v1.0", timingIdentifier, ""
                     )
-                    WeNetSceneApi.sendNetScene(openReq) // seems like this simple version works too
-                    // we don't remove packet from map here for use in hookOpenReqEndCallback
+                    WeNetSceneApi.sendNetScene(openReq)
                 } catch (e: Throwable) {
                     WeLogger.e(TAG, "failed to send open request", e)
                     currentRedPacketMap.remove(sendId)
@@ -129,12 +137,12 @@ object AutoOpenRedPackets : ClickableHookItem(), WeDatabaseListenerApi.IInsertLi
 
             val displayAmount = amount / 100.0
 
-            val autoReply = WePrefs.getStringOrDef("red_packet_auto_reply", "")
-            if (autoReply.isNotBlank()) {
-                WeMessageApi.sendText(info.talker, autoReply.replace($$"$amount", "¥$displayAmount"))
+            val reply = packetAutoReply
+            if (reply.isNotBlank()) {
+                WeMessageApi.sendText(info.talker, reply.replace($$"$amount", "¥$displayAmount"))
             }
 
-            if (!WePrefs.getBoolOrFalse("red_packet_notification")) return@hookAfter
+            if (!packetNotif) return@hookAfter
 
             val displayName = WeDatabaseApi.getDisplayName(info.talker)
             val isGroup = info.talker.endsWith("@chatroom")
@@ -155,17 +163,14 @@ object AutoOpenRedPackets : ClickableHookItem(), WeDatabaseListenerApi.IInsertLi
 
     private fun handleRedPacket(values: ContentValues) {
         try {
-            if (values.getAsInteger("isSend") == 1 && !WePrefs.getBoolOrFalse("red_packet_self")) return
+            if (values.getAsInteger("isSend") == 1 && !packetSelf) return
 
             val talker = values.getAsString("talker") ?: ""
 
-            val useWhitelist = WePrefs.getBoolOrFalse("red_packet_use_whitelist")
-            if (useWhitelist) {
-                val whitelist = WePrefs.getStringSetOrDef("red_packet_whitelist", emptySet())
-                if (talker !in whitelist) return
+            if (packetUseWhitelist) {
+                if (talker !in packetWhitelist) return
             } else {
-                val blacklist = WePrefs.getStringSetOrDef("red_packet_blacklist", emptySet())
-                if (talker in blacklist) return
+                if (talker !in packetBlacklist) return
             }
 
             val content = values.getAsString("content") ?: return
@@ -199,10 +204,8 @@ object AutoOpenRedPackets : ClickableHookItem(), WeDatabaseListenerApi.IInsertLi
                 nickName = nickName
             )
 
-            val customDelay =
-                WePrefs.getStringOrDef("red_packet_delay_custom", "0").toLongOrNull() ?: 0L
-            val randomRange = (WePrefs.getStringOrDef("red_packet_delay_random_range", "300")
-                .toLongOrNull() ?: 300L).coerceAtLeast(0)
+            val customDelay = packetDelayCustom.toLongOrNull() ?: 0L
+            val randomRange = (packetDelayRandomRange.toLongOrNull() ?: 300L).coerceAtLeast(0)
 
             WeLogger.i(TAG, "config: customDelay=$customDelay, randomRange=$randomRange")
 
@@ -236,7 +239,7 @@ object AutoOpenRedPackets : ClickableHookItem(), WeDatabaseListenerApi.IInsertLi
                         msgType, channelId, sendId, nativeUrl, 1 /* inWay */, "v1.0" /* ver */, talker
                     )
 
-                    WeNetSceneApi.sendNetScene(req) // seems like this simple version works too
+                    WeNetSceneApi.sendNetScene(req)
                     WeLogger.i(TAG, "sent receive request (sendId=$sendId)")
                 } catch (e: Throwable) {
                     WeLogger.e(TAG, "failed to send receive request (sendId=$sendId)", e)
@@ -263,12 +266,12 @@ object AutoOpenRedPackets : ClickableHookItem(), WeDatabaseListenerApi.IInsertLi
 
     override fun onClick(context: Context) {
         showComposeDialog(context) {
-            var notification by remember { mutableStateOf(WePrefs.getBoolOrFalse("red_packet_notification")) }
-            var self by remember { mutableStateOf(WePrefs.getBoolOrFalse("red_packet_self")) }
-            var delayInput by remember { mutableStateOf(WePrefs.getStringOrDef("red_packet_delay_custom", "500")) }
-            var useWhitelist by remember { mutableStateOf(WePrefs.getBoolOrFalse("red_packet_use_whitelist")) }
-            var randomRangeInput by remember { mutableStateOf(WePrefs.getStringOrDef("red_packet_delay_random_range", "300")) }
-            var autoReplyInput by remember { mutableStateOf(WePrefs.getStringOrDef("red_packet_auto_reply", "")) }
+            var notification by remember { mutableStateOf(packetNotif) }
+            var self by remember { mutableStateOf(packetSelf) }
+            var delayInput by remember { mutableStateOf(if (WePrefs.containsKey("red_packet_delay_custom")) packetDelayCustom else "500") }
+            var useWhitelist by remember { mutableStateOf(packetUseWhitelist) }
+            var randomRangeInput by remember { mutableStateOf(packetDelayRandomRange) }
+            var autoReplyInput by remember { mutableStateOf(packetAutoReply) }
 
             AlertDialogContent(
                 title = { Text("自动抢红包") },
@@ -285,8 +288,7 @@ object AutoOpenRedPackets : ClickableHookItem(), WeDatabaseListenerApi.IInsertLi
                             supportingContent = { Text("点击选择联系人") },
                             modifier = Modifier.clickable {
                                 val regularContacts = WeDatabaseApi.getFriends() + WeDatabaseApi.getGroups()
-                                val listKey = if (useWhitelist) "red_packet_whitelist" else "red_packet_blacklist"
-                                val currentList = WePrefs.getStringSetOrDef(listKey, emptySet())
+                                val currentList = if (useWhitelist) packetWhitelist else packetBlacklist
 
                                 showComposeDialog(context) {
                                     ContactsSelector(
@@ -294,9 +296,13 @@ object AutoOpenRedPackets : ClickableHookItem(), WeDatabaseListenerApi.IInsertLi
                                         contacts = regularContacts,
                                         initialSelectedWxIds = currentList,
                                         onDismiss = onDismiss
-                                    ) {
-                                        WePrefs.putStringSet(listKey, it)
-                                        showToast("已保存 ${it.size} 个联系人, 重启微信以使更改生效")
+                                    ) { selectedIds ->
+                                        if (useWhitelist) {
+                                            packetWhitelist = selectedIds
+                                        } else {
+                                            packetBlacklist = selectedIds
+                                        }
+                                        showToast("已保存 ${selectedIds.size} 个联系人, 重启微信以使更改生效")
                                         onDismiss()
                                     }
                                 }
@@ -329,7 +335,6 @@ object AutoOpenRedPackets : ClickableHookItem(), WeDatabaseListenerApi.IInsertLi
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
                         )
-                        // TODO: refactor this to use js scripting
                         TextField(
                             value = autoReplyInput,
                             onValueChange = { autoReplyInput = it.trim() },
@@ -341,12 +346,12 @@ object AutoOpenRedPackets : ClickableHookItem(), WeDatabaseListenerApi.IInsertLi
                 },
                 confirmButton = {
                     Button(onClick = {
-                        WePrefs.putBool("red_packet_notification", notification)
-                        WePrefs.putBool("red_packet_self", self)
-                        WePrefs.putString("red_packet_delay_custom", delayInput.ifBlank { "300" })
-                        WePrefs.putBool("red_packet_use_whitelist", useWhitelist)
-                        WePrefs.putString("red_packet_delay_random_range", randomRangeInput.ifBlank { "300" })
-                        WePrefs.putString("red_packet_auto_reply", autoReplyInput)
+                        AutoOpenRedPackets.packetNotif = notification
+                        packetSelf = self
+                        packetDelayCustom = delayInput.ifBlank { "300" }
+                        packetUseWhitelist = useWhitelist
+                        packetDelayRandomRange = randomRangeInput.ifBlank { "300" }
+                        packetAutoReply = autoReplyInput
                         onDismiss()
                     }) { Text("确定") }
                 },

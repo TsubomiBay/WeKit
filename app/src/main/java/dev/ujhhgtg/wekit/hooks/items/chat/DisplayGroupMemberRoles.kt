@@ -9,6 +9,7 @@ import android.text.style.ReplacementSpan
 import android.view.View
 import android.widget.TextView
 import de.robv.android.xposed.XC_MethodHook
+import dev.ujhhgtg.reflekt.reflekt
 import dev.ujhhgtg.wekit.dexkit.abc.IResolveDex
 import dev.ujhhgtg.wekit.dexkit.dsl.dexMethod
 import dev.ujhhgtg.wekit.hooks.api.core.WeConversationApi
@@ -16,7 +17,6 @@ import dev.ujhhgtg.wekit.hooks.api.ui.WeChatMessageViewApi
 import dev.ujhhgtg.wekit.hooks.core.HookItem
 import dev.ujhhgtg.wekit.hooks.core.SwitchHookItem
 import dev.ujhhgtg.wekit.utils.collections.LruCache
-import dev.ujhhgtg.reflekt.reflekt
 import dev.ujhhgtg.wekit.utils.unreachable
 import org.luckypray.dexkit.DexKitBridge
 import kotlin.math.roundToInt
@@ -91,9 +91,6 @@ object DisplayGroupMemberRoles : SwitchHookItem(), IResolveDex,
             else -> unreachable()
         }
 
-        // Build by appending so that any spans already on displayName (e.g. the real-name
-        // annotation from DisplayGroupMemberRealName) are copied and their offsets shifted
-        // forward by (roleText.length + 1) rather than being discarded.
         val sb = SpannableStringBuilder()
         sb.append(roleText)
         sb.append(" ")

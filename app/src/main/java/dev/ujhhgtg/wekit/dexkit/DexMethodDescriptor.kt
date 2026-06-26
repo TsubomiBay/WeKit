@@ -2,11 +2,10 @@ package dev.ujhhgtg.wekit.dexkit
 
 import dev.ujhhgtg.reflekt.utils.isPrivate
 import dev.ujhhgtg.reflekt.utils.isStatic
-import java.io.Serializable
 import java.lang.reflect.Constructor
 import java.lang.reflect.Method
 
-class DexMethodDescriptor : Serializable {
+class DexMethodDescriptor {
 
     val declaringClass: String
     val name: String

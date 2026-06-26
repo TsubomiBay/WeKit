@@ -91,9 +91,9 @@ object DetectDeletedFriends : ClickableHookItem() {
                                 "/cgi-bin/mmpay-bin/beforetransfer", 2783, 0, 0,
                                 """{"2":"${friend.wxId}"}"""
                             ) {
-                                // status is always success
                                 onSuccess { json, _ ->
                                     val jsonObj = Json.parseToJsonElement(json).jsonObject
+                                    WeLogger.d(TAG, jsonObj.toString())
                                     val realName = jsonObj["4"]
                                     WeLogger.d(TAG, "realName=$realName")
                                     if (realName == null) {

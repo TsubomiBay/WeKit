@@ -28,7 +28,7 @@ libsu = "5.2.2"
 # noinspection GradleDependency
 libxposed = "101.0.0"
 dexlib2 = "2.5.2"
-aboutlibraries = "14.2.1"
+aboutlibraries = "15.0.2"
 kotlinpoet = "2.3.0"
 biometric = "1.2.0-alpha05"
 browser = "1.10.0"
@@ -36,7 +36,7 @@ miuix = "0.9.2"
 markwon = "4.6.2"
 annotation = "1.10.0"
 mcp-server = "0.13.0"
-ktor = "3.5.0"
+ktor = "3.5.1"
 dexmaker = "2.28.6"
 
 # noinspection UnusedVersionCatalogEntry
