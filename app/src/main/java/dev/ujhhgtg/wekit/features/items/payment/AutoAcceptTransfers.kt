@@ -87,6 +87,14 @@ object AutoAcceptTransfers : ClickableFeature(), WeDatabaseListenerApi.IInsertLi
     private fun handleTransfer(values: ContentValues) {
         if (values.getAsInteger("isSend") == 1 && !transferSelf) return
 
+        val talker = values.getAsString("talker") ?: ""
+
+        if (transferUseWhitelist) {
+            if (talker !in transferWhitelist) return
+        } else {
+            if (talker in transferBlacklist) return
+        }
+
         val content = values.getAsString("content") ?: return
 
         val subtype = parsePaySubtypeFromXml(content)
@@ -113,12 +121,6 @@ object AutoAcceptTransfers : ClickableFeature(), WeDatabaseListenerApi.IInsertLi
         if (receiverUsername != WeApi.selfWxId) {
             WeLogger.w(TAG, "self is not receiver, ignoring")
             return
-        }
-
-        if (transferUseWhitelist) {
-            if (payerUsername !in transferWhitelist) return
-        } else {
-            if (payerUsername in transferBlacklist) return
         }
 
         val customDelay = transferDelayCustom.toLongOrNull() ?: 0L
@@ -206,7 +208,7 @@ object AutoAcceptTransfers : ClickableFeature(), WeDatabaseListenerApi.IInsertLi
                                         } else {
                                             transferBlacklist = selected
                                         }
-                                        showToast("已保存 ${selected.size} 个联系人, 重启微信以使更改生效")
+                                        showToast("已保存 ${selected.size} 个联系人")
                                         onDismiss()
                                     }
                                 }

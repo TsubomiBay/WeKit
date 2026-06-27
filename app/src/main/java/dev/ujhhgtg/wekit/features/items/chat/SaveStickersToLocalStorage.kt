@@ -6,6 +6,7 @@ import dev.ujhhgtg.reflekt.reflekt
 import dev.ujhhgtg.reflekt.utils.Modifiers
 import dev.ujhhgtg.wekit.dexkit.abc.IResolveDex
 import dev.ujhhgtg.wekit.dexkit.dsl.dexClass
+import dev.ujhhgtg.wekit.features.api.core.WeServiceApi
 import dev.ujhhgtg.wekit.features.api.ui.WeChatMessageContextMenuApi
 import dev.ujhhgtg.wekit.features.core.Feature
 import dev.ujhhgtg.wekit.features.core.SwitchFeature
@@ -56,7 +57,7 @@ object SaveStickersToLocalStorage : SwitchFeature(), IResolveDex,
                 { msgInfo -> msgInfo.type?.isSticker ?: false }
             ) { _, _, msgInfo ->
                 val md5 = msgInfo.imagePath!!
-                val emojiInfo = StickersSync.getEmojiInfoByMd5(md5)
+                val emojiInfo = WeServiceApi.getEmojiInfoByMd5(md5)
                 val emojiFileEncryptMgr = classEmojiFileEncryptMgr.reflekt()
                     .firstMethod {
                         modifiers(Modifiers.STATIC)

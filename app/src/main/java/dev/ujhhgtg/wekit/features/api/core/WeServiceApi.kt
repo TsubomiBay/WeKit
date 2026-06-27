@@ -1,5 +1,6 @@
 package dev.ujhhgtg.wekit.features.api.core
 
+import android.content.Context
 import dev.ujhhgtg.reflekt.reflekt
 import dev.ujhhgtg.reflekt.utils.Modifiers
 import dev.ujhhgtg.wekit.dexkit.abc.IResolveDex
@@ -8,6 +9,7 @@ import dev.ujhhgtg.wekit.dexkit.dsl.dexMethod
 import dev.ujhhgtg.wekit.features.api.core.models.MessageInfo
 import dev.ujhhgtg.wekit.features.core.ApiFeature
 import dev.ujhhgtg.wekit.features.core.Feature
+import dev.ujhhgtg.wekit.utils.reflection.BString
 import org.luckypray.dexkit.DexKitBridge
 import java.lang.reflect.Modifier
 
@@ -95,11 +97,29 @@ object WeServiceApi : ApiFeature(), IResolveDex {
             usingEqStrings("MicroMsg.emoji.EmojiInfoStorage", "md5 is null or invalue. md5:%s")
         }
     }
-
+    private val classEmojiStorageMgr by dexClass {
+        searchPackages("com.tencent.mm.storage")
+        matcher {
+            usingEqStrings("MicroMsg.emoji.EmojiStorageMgr", "EmojiStorageMgr: %s")
+        }
+    }
+    val methodSaveEmojiThumb by dexMethod {
+        matcher {
+            declaredClass("com.tencent.mm.storage.emotion.EmojiInfo")
+            usingEqStrings("save emoji thumb error")
+        }
+    }
     val apiManagerClass: Class<*> by lazy { methodApiManagerGetApi.method.declaringClass }
 
     val emojiFeatureService by lazy {
         getServiceByClass(classEmojiFeatureService.clazz)
+    }
+
+    val emojiStorageMgr by lazy {
+        classEmojiStorageMgr.reflekt().firstMethod {
+            modifiers(Modifiers.STATIC)
+            returnType = classEmojiStorageMgr.clazz
+        }.invokeStatic()!!
     }
 
     val emojiMgr by lazy {
@@ -110,12 +130,53 @@ object WeServiceApi : ApiFeature(), IResolveDex {
             }.invoke(emojiFeatureService)!!
     }
 
-    val emojiInfoStorage by lazy {
+    val emojiMgrImpl: Any by lazy {
         emojiFeatureService.reflekt()
             .firstMethod {
-                parameterCount = 0
+                returnType = classEmojiMgrImpl.clazz
+            }
+            .invoke()!!
+    }
+
+    fun processEmojiPath(path: String): String {
+        return emojiMgrImpl.reflekt().firstMethod {
+            parameters(Context::class, BString)
+            returnType = BString
+        }.invoke(null, path)!! as String
+    }
+
+    fun saveEmojiThumb(path: String): Any {
+        return emojiInfoStorage.reflekt().firstMethod {
+            parameters(BString)
+            returnType = methodSaveEmojiThumb.method.declaringClass
+        }.invoke(path)!!
+    }
+
+    fun getEmojiMd5FromPath(context: Context, path: String): String {
+        return emojiMgrImpl
+            .reflekt()
+            .firstMethod {
+                parameters(Context::class.java, String::class.java)
+                returnType = String::class.java
+            }
+            .invoke(context, path) as String
+    }
+
+    val emojiInfoStorage by lazy {
+        emojiStorageMgr.reflekt()
+            .firstMethod {
                 returnType = classEmojiInfoStorage.clazz
-            }.invoke(emojiFeatureService)!!
+            }
+            .invoke()!!
+    }
+
+    fun getEmojiInfoByMd5(md5: String): Any {
+        return emojiInfoStorage.reflekt()
+            .firstMethod {
+                parameters(BString)
+                returnType = "com.tencent.mm.storage.emotion.EmojiInfo"
+            }
+            .invoke(md5)!!
     }
 
     val storageFeatureService by lazy {

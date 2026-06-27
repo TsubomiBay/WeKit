@@ -193,9 +193,6 @@ object JavaEngine {
             setVariable("engineVerCode", BuildConfig.VERSION_CODE)
             setVariable("engineVerName", BuildConfig.VERSION_NAME)
             setVariable("engineSupportedLatestApi", WA_API)
-            setVariable("engineFeatures", hashSetOf(
-                "AUDIO", "CONFIG", "CONTACT", "HOOK", "HTTP", "MEDIAMSG", "MSG", "OTHER", "REFLECT", "SNS"
-            ))
 
             // ===== Audio Utils =====
 
@@ -845,9 +842,10 @@ object JavaEngine {
             setMethod(BshMethod(
                 "sendEmoji", arrayOf(BString, BString)
             ) {
-                val toUser = it[0] as String; val md5 = it[1] as String
+                val toUser = it[0] as String
+                val path = it[1] as String
                 return@BshMethod runCatching {
-                    WeMessageApi.sendEmoji(toUser, md5)
+                    WeMessageApi.sendEmoji(toUser, path)
                 }.getOrDefault(false)
             })
 

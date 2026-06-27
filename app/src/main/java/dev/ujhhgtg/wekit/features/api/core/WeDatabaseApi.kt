@@ -22,6 +22,7 @@ import dev.ujhhgtg.wekit.features.core.Feature
 import dev.ujhhgtg.wekit.utils.WeLogger
 import dev.ujhhgtg.wekit.utils.reflection.BString
 import dev.ujhhgtg.wekit.utils.reflection.int
+import dev.ujhhgtg.wekit.utils.strings.isGroupChatWxId
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.protobuf.ProtoBuf
@@ -445,7 +446,7 @@ object WeDatabaseApi : ApiFeature(), IResolveDex {
      * @return WeGroup 对象，若未找到则返回 null
      */
     fun getGroup(wxId: String): WeGroup? {
-        if (wxId.isEmpty() || !wxId.endsWith("@chatroom")) return null
+        if (wxId.isEmpty() || !wxId.isGroupChatWxId) return null
         try {
             val escapedWxid = wxId.replace("'", "''")
             val result = executeQuery(SqlStatements.group(escapedWxid))
@@ -470,7 +471,7 @@ object WeDatabaseApi : ApiFeature(), IResolveDex {
         if (convId.isEmpty()) error("convId is empty")
         try {
             val escapedWxid = convId.replace("'", "''")
-            val isGroup = convId.endsWith("@chatroom")
+            val isGroup = convId.isGroupChatWxId
             val sql = if (isGroup) {
                 "SELECT r.nickname FROM rcontact r WHERE r.username = '$escapedWxid'"
             } else {
@@ -514,7 +515,7 @@ object WeDatabaseApi : ApiFeature(), IResolveDex {
      * @param groupId 群聊ID
      */
     fun getGroupMembers(groupId: String): List<WeContact> {
-        if (!groupId.endsWith("@chatroom")) return emptyList()
+        if (!groupId.isGroupChatWxId) return emptyList()
 
         val roomSql = SqlStatements.GROUP_MEMBERS.format(groupId)
         val roomResult = executeQuery(roomSql)
@@ -543,7 +544,7 @@ object WeDatabaseApi : ApiFeature(), IResolveDex {
      * @return 群昵称，未设置时返回空字符串
      */
     fun getGroupMemberDisplayName(groupId: String, memberId: String): String {
-        if (!groupId.endsWith("@chatroom") || memberId.isEmpty()) return ""
+        if (!groupId.isGroupChatWxId || memberId.isEmpty()) return ""
         try {
             val cursor = db.rawQuery(
                 "SELECT roomdata FROM chatroom WHERE chatroomname = ?",

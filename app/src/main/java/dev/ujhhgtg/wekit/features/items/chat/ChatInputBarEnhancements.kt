@@ -57,6 +57,7 @@ import dev.ujhhgtg.wekit.utils.android.showToastSuspend
 import dev.ujhhgtg.wekit.utils.coerceToInt
 import dev.ujhhgtg.wekit.utils.fileExtension
 import dev.ujhhgtg.wekit.utils.fs.KnownPaths
+import dev.ujhhgtg.wekit.utils.strings.isGroupChatWxId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -148,7 +149,7 @@ object ChatInputBarEnhancements : SwitchFeature(), IResolveDex {
                                         ) {
                                             onDismiss()
 
-                                            if (!WeCurrentConversationApi.value.endsWith("@chatroom")) {
+                                            if (!WeCurrentConversationApi.value.isGroupChatWxId) {
                                                 showToast("只能在群组里使用!")
                                                 return@ActionItem
                                             }
