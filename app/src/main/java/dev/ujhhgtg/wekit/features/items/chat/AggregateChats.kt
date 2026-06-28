@@ -413,8 +413,8 @@ object AggregateChats : ClickableFeature(),
             """
             REPLACE INTO ${ConversationTable.NAME} (
                 ${ConversationTable.USERNAME}, ${ConversationTable.DIGEST}, ${ConversationTable.DIGEST_USER}, ${ConversationTable.IS_SEND}, ${ConversationTable.STATUS},
-                ${ConversationTable.CONVERSATION_TIME}, ${ConversationTable.FLAG}, ${ConversationTable.UNREAD_COUNT}, ${ConversationTable.CONTENT}, ${ConversationTable.MSG_TYPE}, ${ConversationTable.CHAT_MODE}
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ${ConversationTable.CONVERSATION_TIME}, ${ConversationTable.FLAG}, ${ConversationTable.UNREAD_COUNT}, ${ConversationTable.UNREAD_MUTE_COUNT}, ${ConversationTable.CONTENT}, ${ConversationTable.MSG_TYPE}, ${ConversationTable.CHAT_MODE}
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
             arrayOf(
                 folder.id,
@@ -425,6 +425,7 @@ object AggregateChats : ClickableFeature(),
                 summary.conversationTime,
                 summary.flag,
                 summary.unreadCount,
+                summary.unreadMuteCount,
                 summary.content,
                 summary.msgType,
                 summary.chatMode
@@ -438,9 +439,9 @@ object AggregateChats : ClickableFeature(),
                 """
                 INSERT OR IGNORE INTO ${ConversationTable.NAME} (
                     ${ConversationTable.USERNAME}, ${ConversationTable.PARENT_REF}, ${ConversationTable.DIGEST}, ${ConversationTable.DIGEST_USER}, ${ConversationTable.IS_SEND},
-                    ${ConversationTable.STATUS}, ${ConversationTable.CONVERSATION_TIME}, ${ConversationTable.FLAG}, ${ConversationTable.UNREAD_COUNT}, ${ConversationTable.CONTENT},
+                    ${ConversationTable.STATUS}, ${ConversationTable.CONVERSATION_TIME}, ${ConversationTable.FLAG}, ${ConversationTable.UNREAD_COUNT}, ${ConversationTable.UNREAD_MUTE_COUNT}, ${ConversationTable.CONTENT},
                     ${ConversationTable.MSG_TYPE}, ${ConversationTable.CHAT_MODE}
-                ) VALUES (?, ?, '', '', 0, 0, 0, 0, 0, '', '', 0)
+                ) VALUES (?, ?, '', '', 0, 0, 0, 0, 0, 0, '', '', 0)
                 """.trimIndent(),
                 arrayOf(member, folderId)
             )
@@ -453,7 +454,7 @@ object AggregateChats : ClickableFeature(),
         val cursor = WeDatabaseApi.rawQuery(
             """
             SELECT ${ConversationTable.DIGEST}, ${ConversationTable.DIGEST_USER}, ${ConversationTable.IS_SEND}, ${ConversationTable.STATUS}, ${ConversationTable.CONVERSATION_TIME},
-                   ${ConversationTable.FLAG}, ${ConversationTable.UNREAD_COUNT}, ${ConversationTable.CONTENT}, ${ConversationTable.MSG_TYPE}, ${ConversationTable.CHAT_MODE}
+                   ${ConversationTable.FLAG}, ${ConversationTable.UNREAD_COUNT}, ${ConversationTable.UNREAD_MUTE_COUNT}, ${ConversationTable.CONTENT}, ${ConversationTable.MSG_TYPE}, ${ConversationTable.CHAT_MODE}
             FROM ${ConversationTable.NAME}
             WHERE ${ConversationTable.USERNAME} IN ($placeholders)
             ORDER BY ${ConversationTable.CONVERSATION_TIME} DESC
@@ -474,6 +475,7 @@ object AggregateChats : ClickableFeature(),
                 flag = maxFlag.coerceAtLeast(cursor.getLongOrZero(ConversationTable.FLAG)).takeIf { it > 0L }
                     ?: fallbackTime,
                 unreadCount = unreadCountForMembers(members),
+                unreadMuteCount = unreadMuteCountForMembers(members),
                 content = cursor.getStringOrEmpty(ConversationTable.CONTENT),
                 msgType = cursor.getStringOrEmpty(ConversationTable.MSG_TYPE),
                 chatMode = cursor.getIntOrZero(ConversationTable.CHAT_MODE)
@@ -482,7 +484,8 @@ object AggregateChats : ClickableFeature(),
         return latest ?: FolderSummary(
             conversationTime = fallbackTime,
             flag = maxFlag.takeIf { it > 0L } ?: fallbackTime,
-            unreadCount = unreadCountForMembers(members)
+            unreadCount = unreadCountForMembers(members),
+            unreadMuteCount = unreadMuteCountForMembers(members)
         )
     }
 
@@ -498,15 +501,48 @@ object AggregateChats : ClickableFeature(),
     }
 
     private fun unreadCountForMembers(members: List<String>): Int {
+        if (members.isEmpty()) return 0
         val placeholders = members.joinToString(",") { "?" }
-        val cursor = WeDatabaseApi.rawQuery(
+        val sumCursor = WeDatabaseApi.rawQuery(
             "SELECT SUM(${ConversationTable.UNREAD_COUNT}) FROM ${ConversationTable.NAME} WHERE ${ConversationTable.USERNAME} IN ($placeholders)",
             arrayOf(*members.toTypedArray())
         )
-        return cursor.use { cursor ->
+        val sum = sumCursor.use { cursor ->
+            if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getInt(0) else 0
+        }
+        if (sum > 0) return sum
+
+        // Fallback: if SUM returned 0 (or null), return count of members that have unReadCount>0
+        val countCursor = WeDatabaseApi.rawQuery(
+            "SELECT COUNT(1) FROM ${ConversationTable.NAME} WHERE ${ConversationTable.USERNAME} IN ($placeholders) AND ${ConversationTable.UNREAD_COUNT}>0",
+            arrayOf(*members.toTypedArray())
+        )
+        return countCursor.use { cursor ->
             if (cursor.moveToFirst()) cursor.getInt(0) else 0
         }
     }
+
+    private fun unreadMuteCountForMembers(members: List<String>): Int {
+        if (members.isEmpty()) return 0
+        val placeholders = members.joinToString(",") { "?" }
+        val sumCursor = WeDatabaseApi.rawQuery(
+            "SELECT SUM(${ConversationTable.UNREAD_MUTE_COUNT}) FROM ${ConversationTable.NAME} WHERE ${ConversationTable.USERNAME} IN ($placeholders)",
+            arrayOf(*members.toTypedArray())
+        )
+        val sum = sumCursor.use { cursor ->
+            if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getInt(0) else 0
+        }
+        if (sum > 0) return sum
+
+        val countCursor = WeDatabaseApi.rawQuery(
+            "SELECT COUNT(1) FROM ${ConversationTable.NAME} WHERE ${ConversationTable.USERNAME} IN ($placeholders) AND ${ConversationTable.UNREAD_MUTE_COUNT}>0",
+            arrayOf(*members.toTypedArray())
+        )
+        return countCursor.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getInt(0) else 0
+        }
+    }
+
 
     private fun isFolderSchemaReady(): Boolean {
         folderSchemaReady?.let { return it }
@@ -871,6 +907,7 @@ object AggregateChats : ClickableFeature(),
         val conversationTime: Long = System.currentTimeMillis(),
         val flag: Long = 0L,
         val unreadCount: Int = 0,
+        val unreadMuteCount: Int = 0,
         val content: String = "",
         val msgType: String = "",
         val chatMode: Int = 0
@@ -887,6 +924,7 @@ object AggregateChats : ClickableFeature(),
         const val CONVERSATION_TIME = "conversationTime"
         const val FLAG = "flag"
         const val UNREAD_COUNT = "unReadCount"
+        const val UNREAD_MUTE_COUNT = "unReadMuteCount"
         const val CONTENT = "content"
         const val MSG_TYPE = "msgType"
         const val CHAT_MODE = "chatmode"
@@ -901,6 +939,7 @@ object AggregateChats : ClickableFeature(),
             CONVERSATION_TIME,
             FLAG,
             UNREAD_COUNT,
+            UNREAD_MUTE_COUNT,
             CONTENT,
             MSG_TYPE,
             CHAT_MODE
