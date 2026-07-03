@@ -55,7 +55,7 @@ android {
         versionCode = commitCount
         versionName = "git+$gitHash"
 
-        buildConfigField("String", "GIT_HASH", "\"${gitHash}\"")
+        buildConfigField("String", "COMMIT_HASH", "\"${gitHash}\"")
         buildConfigField("String", "TAG", "\"WeKit\"")
         buildConfigField("long", "BUILD_TIMESTAMP", "${System.currentTimeMillis()}L")
     }
