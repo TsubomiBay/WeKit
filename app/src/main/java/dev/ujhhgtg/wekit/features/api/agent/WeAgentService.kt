@@ -3,7 +3,6 @@ package dev.ujhhgtg.wekit.features.api.agent
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
-import dev.ujhhgtg.wekit.agent.net.ExternalServiceId
 import dev.ujhhgtg.wekit.agent.data.WeAgentDatabase
 import dev.ujhhgtg.wekit.agent.data.WeAgentRepository
 import dev.ujhhgtg.wekit.agent.data.WeAgentSettings
@@ -22,6 +21,7 @@ import dev.ujhhgtg.wekit.agent.engine.TurnConfig
 import dev.ujhhgtg.wekit.agent.mcp.McpClientManager
 import dev.ujhhgtg.wekit.agent.model.LlmToolCall
 import dev.ujhhgtg.wekit.agent.model.ModelProviderManager
+import dev.ujhhgtg.wekit.agent.net.ExternalServiceId
 import dev.ujhhgtg.wekit.agent.tool.BuiltinToolProvider
 import dev.ujhhgtg.wekit.agent.tool.ToolRegistry
 import dev.ujhhgtg.wekit.agent.ui.UiImageSink
@@ -30,9 +30,12 @@ import dev.ujhhgtg.wekit.agent.workspace.WorkspaceStore
 import dev.ujhhgtg.wekit.features.api.agent.WeAgentService.ballState
 import dev.ujhhgtg.wekit.features.api.agent.WeAgentService.handleEvent
 import dev.ujhhgtg.wekit.features.api.agent.WeAgentService.init
+import dev.ujhhgtg.wekit.features.api.agent.WeAgentService.messageListState
+import dev.ujhhgtg.wekit.features.api.agent.WeAgentService.messageListSyncedSessionId
 import dev.ujhhgtg.wekit.features.api.agent.WeAgentService.newSession
 import dev.ujhhgtg.wekit.features.api.agent.WeAgentService.pendingApproval
 import dev.ujhhgtg.wekit.features.api.agent.WeAgentService.pendingApprovals
+import dev.ujhhgtg.wekit.features.api.agent.WeAgentService.resolveTurnConfig
 import dev.ujhhgtg.wekit.features.api.agent.WeAgentService.runTurn
 import dev.ujhhgtg.wekit.features.api.agent.WeAgentService.runningTurns
 import dev.ujhhgtg.wekit.features.api.agent.WeAgentService.sendMessage
@@ -175,9 +178,13 @@ object WeAgentService : dev.ujhhgtg.wekit.agent.trigger.TriggerManager.TriggerHo
         val role: Role,
         var text: String,
         var reasoning: String? = null,
+        /** True while reasoning tokens are still streaming; reset to false after reloadMessages. */
+        var reasoningStreaming: Boolean = false,
         var toolName: String? = null,
         var toolStatus: ApprovalStatus? = null,
-        /** Persisted [createdAt] from [MessageEntity]; [java.time.Instant.EPOCH] for live-streaming rows. */
+        /** Tool call input arguments JSON; separate from [text] which holds the result. */
+        var toolInput: String? = null,
+        /** Persisted [createdAt] from [dev.ujhhgtg.wekit.agent.data.entity.MessageEntity]; [java.time.Instant.EPOCH] for live-streaming rows. */
         val createdAt: java.time.Instant = java.time.Instant.EPOCH,
     ) {
         enum class Role { USER, ASSISTANT, TOOL, SYSTEM_NOTE }
@@ -495,6 +502,9 @@ object WeAgentService : dev.ujhhgtg.wekit.agent.trigger.TriggerManager.TriggerHo
                         text = payload,
                         toolName = tc?.toolName,
                         toolStatus = tc?.approvalStatus,
+                        // argumentsJson is always persisted in ToolCallEntity — restore it so the
+                        // tool card can show both input and output after a reload/restart.
+                        toolInput = tc?.argumentsJson,
                         createdAt = m.createdAt,
                     )
                 }
@@ -528,6 +538,10 @@ object WeAgentService : dev.ujhhgtg.wekit.agent.trigger.TriggerManager.TriggerHo
         if (sid != null) runningTurns.remove(sid)?.cancel()
         ballState.value = BallState.IDLE
         queuedMessage.value = null
+        // Clear the approval card — cancelling a turn while in PENDING_APPROVAL would otherwise
+        // leave a defunct approval card visible (manualApprovalHandler's finally only removes from
+        // the backing map, not from the UI state).
+        pendingApproval.value = null
     }
 
     /** Cancels only the queued (not-yet-sent) message, restoring the input bar. */
@@ -538,15 +552,16 @@ object WeAgentService : dev.ujhhgtg.wekit.agent.trigger.TriggerManager.TriggerHo
     fun sendMessage(userText: String) {
         if (userText.isBlank()) return
 
+        // Read once to avoid a race where currentSessionId changes between two separate reads.
+        val sessionId = currentSessionId.value
+
         // If the CURRENT session's turn is already running and there's no queued message yet, queue
         // according to mode. (Other sessions may run concurrently — the queue is a foreground concept.)
-        val activeSid = currentSessionId.value
-        if (activeSid != null && runningTurns[activeSid]?.isActive == true && queuedMessage.value == null) {
+        if (sessionId != null && runningTurns[sessionId]?.isActive == true && queuedMessage.value == null) {
             queuedMessage.value = userText
             return
         }
 
-        val sessionId = currentSessionId.value
         if (sessionId == null) {
             // Auto-create a session, then send in the SAME coroutine using the returned id (no race
             // on currentSessionId being set by a separate switchSession launch).
@@ -675,6 +690,14 @@ object WeAgentService : dev.ujhhgtg.wekit.agent.trigger.TriggerManager.TriggerHo
             } finally {
                 runningTurns.remove(sessionId)
                 refreshBallStateForForeground()
+                // Replace live-streaming rows (createdAt = Instant.EPOCH) with the DB-persisted
+                // rows that carry real timestamps. Without this, "回到此处" on the last assistant
+                // message passes Instant.EPOCH to truncateToMessage, which then deletes every
+                // message in the session (all real timestamps are > EPOCH). Run under
+                // NonCancellable so a cancelled turn still gets the reload.
+                if (sessionId == currentSessionId.value) {
+                    withContext(kotlinx.coroutines.NonCancellable) { reloadMessages(sessionId) }
+                }
             }
         }
         runningTurns[sessionId] = job
@@ -713,7 +736,12 @@ object WeAgentService : dev.ujhhgtg.wekit.agent.trigger.TriggerManager.TriggerHo
             is AgentEvent.TextDelta -> if (foreground) appendToLastAssistant(text = ev.text)
             is AgentEvent.ReasoningDelta -> if (foreground) appendToLastAssistant(reasoning = ev.text)
             is AgentEvent.ToolCallStarted ->
-                if (foreground) appendUiRow(ChatRow(id = "t_${ev.callId}", role = ChatRow.Role.TOOL, text = ev.argumentsJson, toolName = ev.toolName))
+                if (foreground) {
+                    // Tool call means the model is done reasoning — clear the streaming flag on the
+                    // last assistant row so ReasoningCard switches to "思考过程" and auto-collapses.
+                    appendToLastAssistant(endReasoning = true)
+                    appendUiRow(ChatRow(id = "t_${ev.callId}", role = ChatRow.Role.TOOL, text = "", toolName = ev.toolName, toolInput = ev.argumentsJson))
+                }
             is AgentEvent.ToolAwaitingApproval -> if (foreground) ballState.value = BallState.PENDING_APPROVAL
             is AgentEvent.ToolCallFinished -> if (foreground) updateToolRow(ev.callId, ev.status, ev.resultText)
             is AgentEvent.UsageUpdated -> {
@@ -880,13 +908,22 @@ object WeAgentService : dev.ujhhgtg.wekit.agent.trigger.TriggerManager.TriggerHo
 
     private fun appendUiRow(row: ChatRow) { uiMessages.add(row) }
 
-    private fun appendToLastAssistant(text: String? = null, reasoning: String? = null) {
+    private fun appendToLastAssistant(text: String? = null, reasoning: String? = null, endReasoning: Boolean = false) {
         val idx = uiMessages.indexOfLast { it.role == ChatRow.Role.ASSISTANT }
         if (idx < 0) return
         val cur = uiMessages[idx]
         uiMessages[idx] = cur.copy(
             text = cur.text + (text ?: ""),
             reasoning = if (reasoning != null) (cur.reasoning ?: "") + reasoning else cur.reasoning,
+            // reasoningStreaming lifecycle:
+            //   reasoning != null       → set true (first/continuing reasoning delta)
+            //   text != null / tool call started / endReasoning → set false (reasoning phase over)
+            //   all null, no endReasoning → preserve (shouldn't happen in practice)
+            reasoningStreaming = when {
+                reasoning != null          -> true
+                text != null || endReasoning -> false
+                else                       -> cur.reasoningStreaming
+            },
         )
     }
 

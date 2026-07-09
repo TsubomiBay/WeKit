@@ -72,7 +72,12 @@ class OpenAiChatCompletionsClient(
             }
             // Some providers expose reasoning under `reasoning` or `reasoning_content`.
             (delta["reasoning"] ?: delta["reasoning_content"])?.jsonPrimitive?.contentOrNullSafe()?.let {
-                if (it.isNotEmpty()) { reasoningBuf.append(it); emit(LlmStreamEvent.ReasoningDelta(it)) }
+                if (it.isNotEmpty()) {
+                    // On the very first reasoning chunk, emit an empty sentinel so the UI shows the
+                    // "思考中..." card immediately — before the first real token is appended.
+                    if (reasoningBuf.isEmpty()) emit(LlmStreamEvent.ReasoningDelta(""))
+                    reasoningBuf.append(it); emit(LlmStreamEvent.ReasoningDelta(it))
+                }
             }
             delta["tool_calls"]?.jsonArray?.forEach { acc.accept(it.jsonObject) }
         }

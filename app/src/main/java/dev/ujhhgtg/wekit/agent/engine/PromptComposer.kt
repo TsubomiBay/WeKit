@@ -55,7 +55,7 @@ class PromptComposer(
             }
         }
         systemPromptContent?.takeIf { it.isNotBlank() }?.let {
-            append("\n\n")
+            append("\n\n# 其他\n")
             append(it.trim())
         }
     }

@@ -89,11 +89,14 @@ class AnthropicMessagesClient(
                 "content_block_start" -> {
                     val index = event["index"]?.jsonPrimitive?.int ?: continue
                     val block = event["content_block"]?.jsonObject ?: continue
-                    if (block["type"]?.jsonPrimitive?.contentOrNullSafe() == "tool_use") {
-                        blocks[index] = ToolUseBlock(
+                    when (block["type"]?.jsonPrimitive?.contentOrNullSafe()) {
+                        "tool_use" -> blocks[index] = ToolUseBlock(
                             id = block["id"]?.jsonPrimitive?.contentOrNullSafe() ?: "call_$index",
                             name = block["name"]?.jsonPrimitive?.contentOrNullSafe() ?: "",
                         )
+                        // Signal the UI that a thinking block has started so the "思考中..." card
+                        // appears immediately — before any thinking_delta text arrives.
+                        "thinking" -> emit(LlmStreamEvent.ReasoningDelta(""))
                     }
                 }
 

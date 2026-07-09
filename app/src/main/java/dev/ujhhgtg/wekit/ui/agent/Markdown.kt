@@ -22,9 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.style.TextAlign
-import coil3.compose.AsyncImage
-import dev.ujhhgtg.wekit.ui.content.GlobalImageLoader
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -34,10 +31,13 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import dev.ujhhgtg.wekit.ui.content.GlobalImageLoader
 
 /**
  * A minimal, pure-Compose Markdown renderer for the WeAgent chat UI. It deliberately covers only the
@@ -305,7 +305,7 @@ private fun AnnotatedString.Builder.emitInline(
             // Inline code: verbatim, no nested parsing.
             c == '`' -> {
                 val close = text.indexOf('`', i + 1)
-                if (close in (i + 1) until end) {
+                if (close in i + 1 until end) {
                     flush()
                     withStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = codeBg)) {
                         append(text.substring(i + 1, close))
@@ -565,7 +565,7 @@ private fun parseBlockSpans(lines: List<String>, from: Int): List<BlockSpan> {
             if (l.isBlank() || fenceRe.matches(l) || ruleRe.matches(l) ||
                 headingRe.matchEntire(l.trimStart()) != null || l.trimStart().startsWith(">") ||
                 bulletRe.matches(l) || orderedRe.matches(l) ||
-                (l.contains('|') && i + 1 < lines.size && tableDelimRe.matches(lines[i + 1]))
+                l.contains('|') && i + 1 < lines.size && tableDelimRe.matches(lines[i + 1])
             ) break
             if (para.isNotEmpty()) para.append('\n')
             para.append(l.trim())
@@ -627,10 +627,9 @@ private fun splitRow(line: String): List<String> {
     var k = 0
     val s = line.trim()
     while (k < s.length) {
-        val ch = s[k]
-        when {
-            ch == '\\' && k + 1 < s.length -> { cur.append(ch).append(s[k + 1]); k += 2 }
-            ch == '|' -> { cells += cur.toString().trim(); cur.setLength(0); k++ }
+        when (val ch = s[k]) {
+            '\\' if k + 1 < s.length -> { cur.append(ch).append(s[k + 1]); k += 2 }
+            '|' -> { cells += cur.toString().trim(); cur.setLength(0); k++ }
             else -> { cur.append(ch); k++ }
         }
     }

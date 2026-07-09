@@ -13,9 +13,9 @@ import dev.ujhhgtg.wekit.agent.trigger.TriggerType
 import dev.ujhhgtg.wekit.features.core.AgentTool
 import dev.ujhhgtg.wekit.features.core.AgentToolParam
 import dev.ujhhgtg.wekit.utils.WeLogger
+import kotlinx.coroutines.currentCoroutineContext
 import java.time.Instant
 import java.util.UUID
-import kotlin.coroutines.coroutineContext
 
 /**
  * Built-in `builtin-trigger` tools that let the agent manage its OWN triggers (§ triggers, AI
@@ -28,7 +28,7 @@ import kotlin.coroutines.coroutineContext
  * [AgentSessionContext] installed around the running turn. GLOBAL triggers always run in a fresh
  * session when they fire (they have no bound session).
  */
-object WeTriggerToolBindings {
+object WeAgentTriggerToolBindings {
 
     private const val GROUP = AgentTool.BUILTIN_TRIGGER
     private const val TAG = "WeTriggerTools"
@@ -46,7 +46,7 @@ object WeTriggerToolBindings {
     suspend fun triggerList(
         @AgentToolParam("Filter: all | session | global (default all)") scope: String?,
     ): String {
-        val currentSession = coroutineContext[AgentSessionContext]?.sessionId
+        val currentSession = currentCoroutineContext()[AgentSessionContext]?.sessionId
         val all = WeAgentRepository.getAllTriggersOnce()
         val filtered = when (scope?.lowercase()) {
             "session" -> all.filter { it.scope == TriggerScope.SESSION && it.sessionId == currentSession }
@@ -63,7 +63,7 @@ object WeTriggerToolBindings {
 
     @AgentTool(
         name = "trigger-create-schedule",
-        description = "Create a scheduled trigger that fires a turn on a timer. scheduleKind is one of: interval (every intervalSeconds), daily (at dailyMinuteOfDay minutes past local midnight), cron (5-field cron in cronExpr, local time), once (single fire at atEpochMillis). By default (omit scope) it is bound to the CURRENT session and fires back into this same conversation; only pass scope='global' if the user explicitly wants a new/separate conversation each fire. promptTemplate is the instruction the agent runs when it fires.",
+        description = "Create a scheduled trigger that fires a turn on a timer. scheduleKind is one of: interval (every intervalSeconds), daily (at dailyMinuteOfDay minutes past local midnight), cron (5-field cron in cronExpr, local time), once (single fire at atEpochMillis (absolute) or atRelative (relative, e.g. \"5m\", \"2h\", \"30s\")). By default (omit scope) it is bound to the CURRENT session and fires back into this same conversation; only pass scope='global' if the user explicitly wants a new/separate conversation each fire. promptTemplate is the instruction the agent runs when it fires.",
         sideEffect = true,
         group = GROUP,
     )
@@ -75,6 +75,7 @@ object WeTriggerToolBindings {
         @AgentToolParam("daily: minutes past local midnight (0..1439)") dailyMinuteOfDay: Int?,
         @AgentToolParam("cron: 5-field cron expression (local time)") cronExpr: String?,
         @AgentToolParam("once: absolute fire time in epoch millis") atEpochMillis: Long?,
+        @AgentToolParam("once: relative fire time, e.g. \"5m\", \"2h\", \"30s\", \"1d\" (alternative to atEpochMillis)") atRelative: String?,
         @AgentToolParam("Scope: OMIT this (or pass 'session') to bind the trigger to the CURRENT session so it fires back into this same conversation — this is what you want almost always. Only pass 'global' if the user explicitly asked for a brand-new/separate conversation on every fire.") scope: String?,
     ): String {
         val kind = when (scheduleKind.lowercase()) {
@@ -84,16 +85,30 @@ object WeTriggerToolBindings {
             "once" -> ScheduleKind.ONCE
             else -> return "Error: unknown scheduleKind '$scheduleKind' (use interval|daily|cron|once)"
         }
+        // Resolve absolute fire time: atRelative if provided, else fall back to atEpochMillis.
+        val resolvedAtEpochMillis = when (kind) {
+            ScheduleKind.ONCE -> {
+                if (atRelative != null) {
+                    val offset = parseRelativeToMillis(atRelative)
+                        ?: return "Error: invalid atRelative format '$atRelative' (use e.g. \"5m\", \"2h\", \"30s\")"
+                    System.currentTimeMillis() + offset
+                } else atEpochMillis
+            }
+            else -> null
+        }
         // Validate the kind-specific field is present & sane.
         when (kind) {
-            ScheduleKind.INTERVAL -> if ((intervalSeconds ?: 0) <= 0) return "Error: interval requires intervalSeconds > 0"
-            ScheduleKind.DAILY -> if ((dailyMinuteOfDay ?: -1) !in 0..1439) return "Error: daily requires dailyMinuteOfDay in 0..1439"
+            ScheduleKind.INTERVAL -> if (intervalSeconds ?: 0 <= 0) return "Error: interval requires intervalSeconds > 0"
+            ScheduleKind.DAILY -> if (dailyMinuteOfDay ?: -1 !in 0..1439) return "Error: daily requires dailyMinuteOfDay in 0..1439"
             ScheduleKind.CRON -> if (cronExpr.isNullOrBlank()) return "Error: cron requires cronExpr"
-            ScheduleKind.ONCE -> if ((atEpochMillis ?: 0) <= System.currentTimeMillis()) return "Error: once requires atEpochMillis in the future"
+            ScheduleKind.ONCE -> {
+                if (resolvedAtEpochMillis == null) return "Error: once requires atEpochMillis (absolute) or atRelative (relative, e.g. \"5m\")"
+                if (resolvedAtEpochMillis <= System.currentTimeMillis()) return "Error: once requires a future time"
+            }
         }
         val resolvedScope = resolveScope(scope) ?: return SCOPE_ERROR
         val boundSession = if (resolvedScope == TriggerScope.SESSION) {
-            coroutineContext[AgentSessionContext]?.sessionId
+            currentCoroutineContext()[AgentSessionContext]?.sessionId
                 ?: return "Error: cannot resolve current session for a session-scoped trigger"
         } else null
 
@@ -102,7 +117,7 @@ object WeTriggerToolBindings {
             intervalSeconds = intervalSeconds.takeIf { kind == ScheduleKind.INTERVAL },
             dailyMinuteOfDay = dailyMinuteOfDay.takeIf { kind == ScheduleKind.DAILY },
             cronExpr = cronExpr.takeIf { kind == ScheduleKind.CRON },
-            atEpochMillis = atEpochMillis.takeIf { kind == ScheduleKind.ONCE },
+            atEpochMillis = resolvedAtEpochMillis.takeIf { kind == ScheduleKind.ONCE },
         )
         WeAgentRepository.upsertTrigger(trigger)
         WeLogger.i(TAG, "AI created schedule trigger id=${trigger.id} scope=${trigger.scope} boundSession=${trigger.sessionId}")
@@ -262,7 +277,7 @@ object WeTriggerToolBindings {
     ): String {
         val resolvedScope = resolveScope(scope) ?: return SCOPE_ERROR
         val boundSession = if (resolvedScope == TriggerScope.SESSION) {
-            coroutineContext[AgentSessionContext]?.sessionId
+            currentCoroutineContext()[AgentSessionContext]?.sessionId
                 ?: return "Error: cannot resolve current session for a session-scoped trigger"
         } else null
 
@@ -277,6 +292,29 @@ object WeTriggerToolBindings {
         WeLogger.i(TAG, "AI created ${type.name.lowercase()} trigger id=${trigger.id} scope=${trigger.scope} boundSession=${trigger.sessionId}")
         val scopeNote = if (resolvedScope == TriggerScope.SESSION) " (bound to this session)" else " (GLOBAL: fires in a new session each time)"
         return "Created ${type.name.lowercase()} trigger '${trigger.name}' (id=${trigger.id})$scopeNote."
+    }
+
+    /**
+     * Parses a human-friendly relative time string into a millisecond offset.
+     * Supported formats:
+     *  - "Xs", "Xsec", "Xsecond", "Xseconds"  -> X seconds
+     *  - "Xm", "Xmin", "Xminute", "Xminutes"  -> X minutes
+     *  - "Xh", "Xhour", "Xhours"              -> X hours
+     *  - "Xd", "Xday", "Xdays"                -> X days
+     * Returns null on malformed input.
+     */
+    private fun parseRelativeToMillis(relative: String): Long? {
+        val trimmed = relative.trim().lowercase()
+        val regex = Regex("""^(\d+)\s*(s|sec|second|seconds|m|min|minute|minutes|h|hour|hours|d|day|days)$""")
+        val match = regex.matchEntire(trimmed) ?: return null
+        val num = match.groupValues[1].toLongOrNull() ?: return null
+        return when (match.groupValues[2]) {
+            "s", "sec", "second", "seconds" -> num * 1000L
+            "m", "min", "minute", "minutes" -> num * 60_000L
+            "h", "hour", "hours" -> num * 3_600_000L
+            "d", "day", "days" -> num * 86_400_000L
+            else -> null
+        }
     }
 
     private fun summarize(t: TriggerEntity): String = buildString {

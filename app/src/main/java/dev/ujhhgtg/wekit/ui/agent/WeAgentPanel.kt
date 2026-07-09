@@ -1,7 +1,12 @@
 package dev.ujhhgtg.wekit.ui.agent
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -32,6 +37,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -44,6 +50,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,8 +58,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.materialsymbols.MaterialSymbols
@@ -249,7 +260,7 @@ private fun ChatPane(modifier: Modifier, onDismiss: () -> Unit, onOpenSidebar: (
             }
         }
 
-        MessageList(Modifier.weight(1f))
+        MessageList(Modifier.weight(1f), onRestoreInput = { inputText = it })
 
         ApprovalCard()
 
@@ -599,13 +610,28 @@ private fun SubmenuHeader(title: String, onBack: () -> Unit) {
 }
 
 @Composable
-private fun MessageList(modifier: Modifier) {
+private fun MessageList(modifier: Modifier, onRestoreInput: (String) -> Unit = {}) {
     val messages = WeAgentService.uiMessages
     // The list state lives in WeAgentService so it survives this panel being disposed when the ball
     // closes; that's what keeps the scroll position put across open/close instead of resetting to the
     // top. We only pull to the bottom on a real new row or a session switch — never on a plain reopen.
     val listState = WeAgentService.messageListState
     val currentSessionId by WeAgentService.currentSessionId
+    // For each user message, the createdAt of the assistant message that immediately preceded it.
+    // "回到此处" / "创建分支" on a user row rewinds/branches to that assistant turn, not to the user
+    // message itself — so the user's prompt ends up re-entering via the input bar instead of being
+    // baked into history. Null means no preceding assistant turn (rewind clears all; branch is empty).
+    val prevAssistantAt by remember {
+        derivedStateOf {
+            buildMap {
+                var last: java.time.Instant? = null
+                for (m in messages) {
+                    if (m.role == ChatRow.Role.USER) put(m.id, last)
+                    else if (m.role == ChatRow.Role.ASSISTANT) last = m.createdAt
+                }
+            }
+        }
+    }
     LaunchedEffect(Unit) {
         // Track the size seen at the start of THIS composition so the first emission (which just
         // reopening the panel produces) never scrolls — that's what preserves the position. After
@@ -632,13 +658,23 @@ private fun MessageList(modifier: Modifier) {
             }
     }
     LazyColumn(modifier.fillMaxWidth(), state = listState, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        items(messages, key = { it.id }) { row -> MessageBubble(row) }
+        items(messages, key = { it.id }) { row ->
+            MessageBubble(
+                row = row,
+                onRestoreInput = onRestoreInput,
+                prevAssistantTimestamp = prevAssistantAt[row.id],
+            )
+        }
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MessageBubble(row: ChatRow) {
+private fun MessageBubble(
+    row: ChatRow,
+    onRestoreInput: (String) -> Unit = {},
+    prevAssistantTimestamp: java.time.Instant? = null,
+) {
     when (row.role) {
         ChatRow.Role.TOOL -> ToolCard(row)
         else -> {
@@ -653,24 +689,37 @@ private fun MessageBubble(row: ChatRow) {
             val showTextCard = row.text.isNotEmpty() || row.reasoning.isNullOrBlank()
             Column(Modifier.fillMaxWidth(), horizontalAlignment = align) {
                 // Reasoning is its own separate, collapsible card above the message text.
-                row.reasoning?.takeIf { it.isNotBlank() }?.let {
-                    CollapsibleCard(title = "💭 思考过程", body = it)
+                // Shown as soon as reasoning starts streaming (reasoningStreaming=true) and keeps
+                // displaying completed reasoning after the turn ends (reasoningStreaming=false).
+                if (row.reasoningStreaming || row.reasoning?.isNotBlank() == true) {
+                    ReasoningCard(reasoning = row.reasoning, isStreaming = row.reasoningStreaming)
                     // Only separate from the text card when it actually follows; otherwise the outer
                     // LazyColumn's spacing already provides the gap to the next row (avoids a double gap).
                     if (showTextCard) Spacer(Modifier.height(6.dp))
                 }
                 if (showTextCard) {
-                    // Long-pressing an assistant message opens a context menu.
+                    // Long-pressing an assistant or user message opens a context menu.
                     var menuOpen by remember(row.id) { mutableStateOf(false) }
                     // Two-step confirmation state for "回到此处": first click arms it (turns red),
                     // second click executes. Resets whenever the menu closes.
                     var confirmGoBack by remember(row.id) { mutableStateOf(false) }
-                    val longPressable = row.role == ChatRow.Role.ASSISTANT && row.text.isNotEmpty()
+                    val longPressable = (row.role == ChatRow.Role.ASSISTANT || row.role == ChatRow.Role.USER) && row.text.isNotEmpty()
                     // A running turn blocks "回到此处" (the UI contract: truncation only when idle).
                     val sessionRunning = WeAgentService.ballState.value.let {
                         it == WeAgentService.BallState.RUNNING || it == WeAgentService.BallState.PENDING_APPROVAL
                     }
                     val sessionId = WeAgentService.currentSessionId.value
+                    // The timestamp passed to truncateToMessage / branchSession.
+                    // • Assistant row  → the row's own createdAt (unchanged behavior).
+                    // • User row       → the preceding assistant turn's createdAt, so the user
+                    //   message itself is NOT baked into history — it's restored to the input bar
+                    //   instead. Instant.EPOCH when there is no preceding assistant message, which
+                    //   the SQL interprets as "before all real messages" (clears / empty branch).
+                    val anchorAt = if (row.role == ChatRow.Role.USER) {
+                        prevAssistantTimestamp ?: java.time.Instant.EPOCH
+                    } else {
+                        row.createdAt
+                    }
                     Box {
                         Card(
                             colors = CardDefaults.cardColors(containerColor = bg),
@@ -717,6 +766,8 @@ private fun MessageBubble(row: ChatRow) {
                                     },
                                 )
                                 // --- 回到此处 (two-step: first click arms, second executes) ---
+                                // User rows: truncates to the preceding assistant turn and restores
+                                // the user message text to the input bar.
                                 DropdownMenuItem(
                                     text = {
                                         Text(
@@ -737,7 +788,8 @@ private fun MessageBubble(row: ChatRow) {
                                     onClick = {
                                         if (confirmGoBack) {
                                             if (sessionId != null) {
-                                                WeAgentService.truncateToMessage(sessionId, row.createdAt)
+                                                WeAgentService.truncateToMessage(sessionId, anchorAt)
+                                                if (row.role == ChatRow.Role.USER) onRestoreInput(row.text)
                                             }
                                             menuOpen = false
                                             confirmGoBack = false
@@ -747,6 +799,8 @@ private fun MessageBubble(row: ChatRow) {
                                     },
                                 )
                                 // --- 创建分支 ---
+                                // User rows: branches from the preceding assistant turn and restores
+                                // the user message text to the input bar in the new session.
                                 DropdownMenuItem(
                                     text = { Text("创建分支") },
                                     leadingIcon = {
@@ -754,7 +808,8 @@ private fun MessageBubble(row: ChatRow) {
                                     },
                                     onClick = {
                                         if (sessionId != null) {
-                                            WeAgentService.branchSession(sessionId, row.createdAt)
+                                            WeAgentService.branchSession(sessionId, anchorAt)
+                                            if (row.role == ChatRow.Role.USER) onRestoreInput(row.text)
                                         }
                                         menuOpen = false
                                     },
@@ -768,66 +823,240 @@ private fun MessageBubble(row: ChatRow) {
     }
 }
 
-/** A tool-call card, collapsed by default; the header shows the tool name + status, tap to expand. */
+/**
+ * Tool-call card: header shows tool name + status; body is split into an input section (arguments
+ * JSON) and an output section (result), separated by a thin divider. Collapsed by default.
+ * Long-pressing the header copies both sections to the clipboard.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ToolCard(row: ChatRow) {
-    CollapsibleCard(
-        title = "🛠 ${row.toolName ?: "tool"}${row.toolStatus?.let { " · $it" } ?: ""}",
-        body = row.text.ifEmpty { "（无输出）" },
-        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-    )
+    var expanded by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
+    val caretRotation by animateFloatAsState(if (expanded) 180f else 0f, tween(220), label = "caret")
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.fillMaxWidth()) {
+            Box(Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .combinedClickable(
+                            onClick = { expanded = !expanded },
+                            onLongClick = { menuOpen = true },
+                        )
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "🛠 ${row.toolName ?: "tool"}${row.toolStatus?.let { " · $it" } ?: ""}",
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        if (expanded) "收起 " else "展开 ",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        "▼",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.rotate(caretRotation),
+                    )
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("复制") },
+                        leadingIcon = { Icon(MaterialSymbols.Outlined.Copy_all, contentDescription = null) },
+                        onClick = {
+                            val content = buildString {
+                                row.toolInput?.let { append("输入：\n$it") }
+                                if (row.text.isNotEmpty()) {
+                                    if (row.toolInput != null) append("\n\n输出：\n")
+                                    append(row.text)
+                                }
+                            }
+                            copyToClipboard(content)
+                            showToast("已复制")
+                            menuOpen = false
+                        },
+                    )
+                }
+            }
+
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(tween(220)) + fadeIn(tween(220)),
+                exit = shrinkVertically(tween(220)) + fadeOut(tween(220)),
+            ) {
+                Column(Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp)) {
+                    val toolInput = row.toolInput
+                    // Input (arguments JSON)
+                    if (toolInput != null) {
+                        Text(
+                            "输入",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            toolInput,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                        )
+                        Spacer(Modifier.height(6.dp))
+                    }
+                    // Output (result)
+                    Text(
+                        "输出",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        row.text.ifEmpty { "（执行中…）" },
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
+    }
 }
 
 /**
- * A card whose body is hidden by default; tapping the header row toggles expansion. Used for both
- * reasoning content and tool calls (both default collapsed per the request).
+ * Reasoning ("思考过程") card. While the turn is streaming ([isStreaming]=true) it shows an
+ * animated "思考中···" header with a sweeping aurora shimmer — conveying that the model is actively
+ * thinking. After streaming ends the title reverts to "💭 思考过程" and the card behaves like a
+ * normal collapsible. Long-pressing the header copies the reasoning to the clipboard.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun CollapsibleCard(
-    title: String,
-    body: String,
+private fun ReasoningCard(
+    reasoning: String?,
+    isStreaming: Boolean,
     containerColor: Color = MaterialTheme.colorScheme.surfaceVariant,
 ) {
+    // expanded tracks the user's manual preference. effectiveExpanded also opens the body
+    // automatically while streaming so reasoning text is visible as it arrives.
     var expanded by remember { mutableStateOf(false) }
-    // Rotate a single caret (▼ at 0°, ▲ at 180°) instead of swapping glyphs, so the indicator
-    // animates smoothly in step with the body expand/collapse.
-    val caretRotation by animateFloatAsState(if (expanded) 180f else 0f, tween(220), label = "caret")
+    // Auto-collapse when streaming ends. LaunchedEffect fires on first composition (initial
+    // isStreaming value) and on every subsequent change, so a DB-loaded card (isStreaming=false)
+    // starts collapsed, and a just-finished streaming card collapses automatically.
+    LaunchedEffect(isStreaming) { if (!isStreaming) expanded = false }
+    val effectiveExpanded = expanded || isStreaming
+    var menuOpen by remember { mutableStateOf(false) }
+    val caretRotation by animateFloatAsState(if (effectiveExpanded) 180f else 0f, tween(220), label = "caret")
+
+    val infiniteTransition = rememberInfiniteTransition(label = "reasoning-anim")
+
+    // Shimmer sweep: a diagonal gradient that travels left→right across the card header.
+    val shimmerProgress by infiniteTransition.animateFloat(
+        initialValue = -0.5f,
+        targetValue = 1.5f,
+        animationSpec = infiniteRepeatable(tween(2200, easing = LinearEasing), RepeatMode.Restart),
+        label = "shimmer",
+    )
+    // Cycling dots for "思考中·" / "思考中··" / "思考中···"
+    val dotPhase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 3f,
+        animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing), RepeatMode.Restart),
+        label = "dots",
+    )
+
+    val primary = MaterialTheme.colorScheme.primary
+    val secondary = MaterialTheme.colorScheme.secondary
+    val titleText = if (isStreaming) "思考中${"·".repeat(dotPhase.toInt() % 3 + 1)}" else "💭 思考过程"
+
     Card(
         colors = CardDefaults.cardColors(containerColor = containerColor),
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.fillMaxWidth()) {
-            Row(
-                Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    // Aurora shimmer drawn behind the header row only when streaming.
+                    .then(
+                        if (isStreaming) Modifier.drawBehind {
+                            drawRect(
+                                Brush.linearGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        primary.copy(alpha = 0.18f),
+                                        secondary.copy(alpha = 0.30f),
+                                        primary.copy(alpha = 0.18f),
+                                        Color.Transparent,
+                                    ),
+                                    start = Offset(size.width * (shimmerProgress - 0.4f), 0f),
+                                    end   = Offset(size.width * (shimmerProgress + 0.4f), size.height),
+                                )
+                            )
+                        } else Modifier
+                    ),
             ) {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    if (expanded) "收起 " else "展开 ",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Text(
-                    "▼",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.rotate(caretRotation),
-                )
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .combinedClickable(
+                            onClick = { expanded = !expanded },
+                            onLongClick = { menuOpen = true },
+                        )
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        titleText,
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    // Caret always shown so the user can collapse during or after streaming.
+                    Text(
+                        if (effectiveExpanded) "收起 " else "展开 ",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        "▼",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.rotate(caretRotation),
+                    )
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("复制") },
+                        leadingIcon = { Icon(MaterialSymbols.Outlined.Copy_all, contentDescription = null) },
+                        onClick = {
+                            copyToClipboard(reasoning ?: "")
+                            showToast("已复制")
+                            menuOpen = false
+                        },
+                    )
+                }
             }
+
             AnimatedVisibility(
-                visible = expanded,
+                visible = effectiveExpanded && !reasoning.isNullOrBlank(),
                 enter = expandVertically(tween(220)) + fadeIn(tween(220)),
                 exit = shrinkVertically(tween(220)) + fadeOut(tween(220)),
             ) {
                 Text(
-                    body,
+                    reasoning ?: "",
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp),
                 )

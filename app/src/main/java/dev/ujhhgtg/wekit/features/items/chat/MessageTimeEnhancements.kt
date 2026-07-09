@@ -52,7 +52,6 @@ import dev.ujhhgtg.wekit.ui.utils.showComposeDialog
 import dev.ujhhgtg.wekit.utils.android.isDarkMode
 import dev.ujhhgtg.wekit.utils.android.showToast
 import dev.ujhhgtg.wekit.utils.formatEpoch
-import java.lang.reflect.Field
 
 
 @Feature(name = "消息时间增强", categories = ["聊天"], description = "显示精确消息发送时间并允许显示更多详情")
@@ -68,7 +67,7 @@ object MessageTimeEnhancements : ClickableFeature(),
     }
 
     private var timeFormat by prefOption("msg_time_pattern", "yyyy/MM/dd HH:mm:ss")
-    private var textSize by prefOption("msg_time_text_size", 10)
+    private var textSize by prefOption("msg_time_text_size", 11)
     private var displayFormat by prefOption("msg_time_display_format", $$"$time | $type")
     private var isAlwaysCentered by prefOption("msg_time_always_centered", false)
     private var isAlwaysVisible by prefOption("msg_time_always_visible", false)
