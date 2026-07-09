@@ -30,15 +30,22 @@ object QuickRevokeAndEdit : SwitchFeature(), WeChatMessageContextMenuApi.IMenuIt
             WeChatMessageContextMenuApi.MenuItem(
                 777016, "编辑", EditIcon, MaterialSymbols.Outlined.Edit,
                 isSupported = {
-                    @Suppress("DEPRECATION")
-                    it.type == MessageType.TEXT
+                    it.type?.isText == true
                 },
                 // revokes then loads one message's text into the input box; single-message only
                 multiSelect = WeChatMessageContextMenuApi.MultiSelectSupport.Unsupported
             ) { view, _, msgInfo ->
                 val chatFooter = WeCurrentConversationApi.chatFooter ?: return@MenuItem
                 WeMessageApi.revokeMsg(msgInfo)
-                chatFooter.lastText = msgInfo.actualContent
+                if (msgInfo.type == MessageType.QUOTE) {
+                    chatFooter.lastText = msgInfo.quoteMsgActualContent ?: ""
+                        // FIXME: doesn't work
+//                    WeMessageApi.setReferringMessage(chatFooter,
+//                        WeMessageApi.getMsgInfoInstanceByMsgSvrId(msgInfo.toQuoteMessage()!!.svrid,
+//                            arrayOf("talker", "content")))
+                } else {
+                    chatFooter.lastText = msgInfo.actualContent
+                }
 
                 chatFooter.setMode(1)
                 val toSendEt = chatFooter.reflekt().invokeMethod("getToSendEt")!!

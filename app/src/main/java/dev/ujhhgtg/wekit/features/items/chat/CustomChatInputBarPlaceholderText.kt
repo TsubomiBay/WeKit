@@ -52,7 +52,7 @@ object CustomChatInputBarPlaceholderText : ClickableFeature(), IResolveDex, WeDa
     private var transferC by prefOption("custom_pt_transfer_count", 0)
     private var redPacketC by prefOption("custom_pt_red_packet_count", 0)
     private var fileC by prefOption("custom_pt_file_count", 0)
-    private var text by prefOption("custom_pt_text", "")
+    private var text by prefOption("custom_pt_text", $$"今天总共发了 $totalCount 条消息喵")
 
     private val PLACEHOLDERS = listOf(
         $$"$totalCount",

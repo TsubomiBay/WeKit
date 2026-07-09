@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.graphics.toColorInt
+import com.tencent.mm.pluginsdk.ui.chat.ChatFooter
 import de.robv.android.xposed.XC_MethodHook
 import dev.ujhhgtg.reflekt.reflekt
 import dev.ujhhgtg.wekit.dexkit.abc.IResolveDex
@@ -527,16 +528,10 @@ object SwipeToQuoteOrRepeat : ClickableFeature(), IResolveDex,
         val api = WeServiceApi.getApiByClass(apiMan, classChattingUiFootComponent.clazz)
         val chatFooter = api.reflekt()
             .firstField { type = "com.tencent.mm.pluginsdk.ui.chat.ChatFooter" }
-            .get()!!
-        val quoteMethod = chatFooter.reflekt()
-            .firstMethod {
-                parameters { params -> params[0] == WeMessageApi.classMsgInfo.clazz }
-                returnType = Boolean::class
-            }.self
+            .get()!! as ChatFooter
         val chatHolder = originalView.tag.reflekt().getField("chatHolder", true)!!
-        val msgInfo = methodGetMsgInfo.method.invoke(null, chatHolder, chattingContext)
-        if (quoteMethod.parameterCount == 1) quoteMethod.invoke(chatFooter, msgInfo)
-        else quoteMethod.invoke(chatFooter, msgInfo, null)
+        val msgInfo = methodGetMsgInfo.method.invoke(null, chatHolder, chattingContext)!!
+        WeMessageApi.setReferringMessage(chatFooter, msgInfo)
     }
 
     private fun onSwipeRepeat(view: View, s: SwipeState) {

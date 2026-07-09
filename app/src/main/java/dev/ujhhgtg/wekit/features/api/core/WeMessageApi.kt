@@ -12,6 +12,7 @@ import com.tencent.mm.opensdk.modelmsg.WXTextObject
 import com.tencent.mm.opensdk.modelmsg.WXVideoObject
 import com.tencent.mm.opensdk.modelmsg.WXWebpageObject
 import com.tencent.mm.plugin.gif.MMWXGFJNI
+import com.tencent.mm.pluginsdk.ui.chat.ChatFooter
 import dev.ujhhgtg.reflekt.reflekt
 import dev.ujhhgtg.reflekt.spec.VagueType
 import dev.ujhhgtg.reflekt.spec.typeMatches
@@ -25,6 +26,8 @@ import dev.ujhhgtg.wekit.dexkit.abc.IResolveDex
 import dev.ujhhgtg.wekit.dexkit.dsl.dexClass
 import dev.ujhhgtg.wekit.dexkit.dsl.dexConstructor
 import dev.ujhhgtg.wekit.dexkit.dsl.dexMethod
+import dev.ujhhgtg.wekit.features.api.core.WeMessageApi.cacheFile
+import dev.ujhhgtg.wekit.features.api.core.WeMessageApi.downloadFile
 import dev.ujhhgtg.wekit.features.api.core.models.MessageInfo
 import dev.ujhhgtg.wekit.features.api.net.WeNetSceneApi
 import dev.ujhhgtg.wekit.features.core.ApiFeature
@@ -560,7 +563,7 @@ object WeMessageApi : ApiFeature(), IResolveDex {
 
     fun getMsgInfoInstanceBySql(whereClause: String, whereArgs: Array<String>, columnNames: Array<String>): Any {
         val msgInfoStorage = WeServiceApi.msgInfoStorage
-        val sqliteWrapper = msgInfoStorage.reflekt().firstField { type = classSqliteWrapper.clazz }.get()!!
+        val sqliteWrapper = msgInfoStorage.reflekt().firstField { type = classSqliteWrapper.clazz.interfaces[0] }.get()!!
         val cursor = sqliteWrapper.reflekt().firstMethod {
             parameters(BString, StrArr, BString, StrArr, BString, BString, BString, int)
         }.invoke("message", columnNames + arrayOf("msgId", "lvbuffer"), whereClause, whereArgs, null, null, null, 2) as Cursor
@@ -1878,5 +1881,15 @@ object WeMessageApi : ApiFeature(), IResolveDex {
             WeLogger.e(TAG, "downloadFile failed", e)
             null
         }
+    }
+
+    fun setReferringMessage(chatFooter: ChatFooter, instance: Any) {
+        val quoteMethod = chatFooter.reflekt()
+            .firstMethod {
+                parameters { args -> args[0] == classMsgInfo.clazz }
+                returnType = Boolean::class
+            }.self
+        if (quoteMethod.parameterCount == 1) quoteMethod.invoke(chatFooter, instance)
+        else quoteMethod.invoke(chatFooter, instance, null)
     }
 }
