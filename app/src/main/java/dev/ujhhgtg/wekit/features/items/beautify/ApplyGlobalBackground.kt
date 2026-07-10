@@ -29,10 +29,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.core.view.isVisible
 import androidx.core.view.postDelayed
 import coil3.load
 import coil3.request.crossfade
 import dev.ujhhgtg.reflekt.reflekt
+import dev.ujhhgtg.reflekt.utils.Modifiers
 import dev.ujhhgtg.wekit.activity.TransparentActivity
 import dev.ujhhgtg.wekit.constants.PackageNames
 import dev.ujhhgtg.wekit.dexkit.abc.IResolveDex
@@ -48,11 +50,9 @@ import dev.ujhhgtg.wekit.ui.utils.showComposeDialog
 import dev.ujhhgtg.wekit.utils.HostInfo
 import dev.ujhhgtg.wekit.utils.WeLogger
 import dev.ujhhgtg.wekit.utils.android.showToast
-import dev.ujhhgtg.wekit.utils.now
 import dev.ujhhgtg.wekit.utils.nul
 import kotlin.math.max
 import kotlin.math.roundToInt
-import kotlin.time.Duration.Companion.milliseconds
 
 @Feature(
     name = "应用全局背景", categories = ["界面美化"],
@@ -62,15 +62,15 @@ object ApplyGlobalBackground : ClickableFeature(), IResolveDex {
 
     private const val TAG = "ApplyGlobalBackground"
 
-    // g4 = ImageGalleryOPLayer controller in com.tencent.mm.ui.chatting.gallery
-    private val methodShowLayer by dexMethod {
+    private val methodInitImageView by dexMethod {
         matcher {
-            usingEqStrings("showLayer skip: ")
-        }
-    }
-    private val methodHideLayer by dexMethod {
-        matcher {
-            usingEqStrings("hideLayer: ")
+            declaredClass = "com.tencent.mm.ui.base.MultiTouchImageView"
+            modifiers(Modifiers.FINAL)
+            returnType = "void"
+            addInvoke {
+                declaredClass = "android.widget.ImageView"
+                name = "setScaleType"
+            }
         }
     }
 
@@ -113,9 +113,6 @@ object ApplyGlobalBackground : ClickableFeature(), IResolveDex {
         "${PackageNames.WECHAT}.plugin.brandservice.ui.timeline.preload.ui.TmplWebViewMMUI"
     )
 
-    private var lastShowTime = now()
-    private val DEBOUNCE_DELAY = 500L.milliseconds
-
     override fun onEnable() {
         Activity::class.reflekt().apply {
             firstMethod {
@@ -152,25 +149,19 @@ object ApplyGlobalBackground : ClickableFeature(), IResolveDex {
             }
         }
 
-        methodShowLayer.hookBefore {
-            val ctx = (thisObject.reflekt().firstField { type = View::class }.get()!! as View).context
+        methodInitImageView.hookBefore {
+            val view = thisObject as ImageView
+            view.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(v: View) {
+                    overlayFromContext(v.context)?.isVisible = false
+                    WeLogger.d(TAG, "hiding overlay")
+                }
 
-            if (now() - lastShowTime < DEBOUNCE_DELAY) {
-                WeLogger.d(TAG, "ignoring hide overlay request")
-                return@hookBefore
-            }
-
-            overlayFromContext(ctx)?.visibility = View.INVISIBLE
-            WeLogger.d(TAG, "hiding overlay")
-        }
-
-        methodHideLayer.hookBefore {
-            val ctx = (thisObject.reflekt().firstField { type = View::class }.get()!! as View).context
-
-            lastShowTime = now()
-
-            overlayFromContext(ctx)?.visibility = View.VISIBLE
-            WeLogger.d(TAG, "showing overlay")
+                override fun onViewDetachedFromWindow(v: View) {
+                    overlayFromContext(v.context)?.isVisible = true
+                    WeLogger.d(TAG, "showing overlay")
+                }
+            })
         }
     }
 
