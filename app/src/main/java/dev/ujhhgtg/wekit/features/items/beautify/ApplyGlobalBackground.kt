@@ -111,7 +111,8 @@ object ApplyGlobalBackground : ClickableFeature(), IResolveDex {
         "${PackageNames.WECHAT}.plugin.finder.feed.ui.FinderProfileTimeLineUI",
         "${PackageNames.WECHAT}.plugin.sns.ui.SnsGalleryUI",
         "${PackageNames.WECHAT}.pluginsdk.ui.ProfileHdHeadImg",
-        "${PackageNames.WECHAT}.plugin.brandservice.ui.timeline.preload.ui.TmplWebViewMMUI"
+        "${PackageNames.WECHAT}.plugin.brandservice.ui.timeline.preload.ui.TmplWebViewMMUI",
+        "${PackageNames.WECHAT}.plugin.voip.ui.VideoActivity"
     )
 
     override fun onEnable() {
